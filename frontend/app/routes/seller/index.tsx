@@ -1,7 +1,9 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
-import { Package, ShoppingBag, DollarSign, TrendingUp } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, TrendingUp, Star, Loader2 } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
-import { useEffect } from "react";
+import { vendorAnalyticsApi } from "~/lib/services";
+import { formatCurrency } from "~/lib/utils";
+import { useEffect, useState } from "react";
 
 export function meta() {
   return [
@@ -10,12 +12,52 @@ export function meta() {
   ];
 }
 
+interface DashboardStats {
+  today: {
+    orders: number;
+    revenue: number;
+    products_sold: number;
+  };
+  this_month: {
+    orders: number;
+    revenue: number;
+    products_sold: number;
+  };
+  total: {
+    products: number;
+    total_sales: number;
+    rating: number;
+  };
+}
+
 export default function SellerDashboardPage() {
   const { user, checkAuth } = useAuthStore();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.is_vendor) return;
+      
+      try {
+        setIsLoading(true);
+        const data = await vendorAnalyticsApi.getDashboardStats();
+        setStats(data);
+      } catch (err: any) {
+        console.error("Failed to fetch dashboard stats:", err);
+        setError(err.response?.data?.detail || "Không thể tải dữ liệu thống kê");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [user?.is_vendor]);
 
   if (!user) {
     return (
@@ -45,33 +87,89 @@ export default function SellerDashboardPage() {
     );
   }
 
-  const stats = [
-    { label: "Sản phẩm", value: "0", icon: Package, color: "text-blue-600" },
-    { label: "Đơn hàng mới", value: "0", icon: ShoppingBag, color: "text-orange-600" },
-    { label: "Doanh thu", value: "0 ₫", icon: DollarSign, color: "text-green-600" },
-    { label: "Tăng trưởng", value: "+0%", icon: TrendingUp, color: "text-purple-600" },
+  const statsDisplay = [
+    { 
+      label: "Sản phẩm", 
+      value: isLoading ? "..." : (stats?.total.products.toString() || "0"), 
+      icon: Package, 
+      color: "text-blue-600",
+      bg: "bg-blue-50 dark:bg-blue-900/20"
+    },
+    { 
+      label: "Đơn hàng hôm nay", 
+      value: isLoading ? "..." : (stats?.today.orders.toString() || "0"), 
+      icon: ShoppingBag, 
+      color: "text-orange-600",
+      bg: "bg-orange-50 dark:bg-orange-900/20"
+    },
+    { 
+      label: "Doanh thu tháng", 
+      value: isLoading ? "..." : formatCurrency(stats?.this_month.revenue || 0), 
+      icon: DollarSign, 
+      color: "text-green-600",
+      bg: "bg-green-50 dark:bg-green-900/20"
+    },
+    { 
+      label: "Đánh giá", 
+      value: isLoading ? "..." : `${stats?.total.rating?.toFixed(1) || "0"} ⭐`, 
+      icon: Star, 
+      color: "text-yellow-600",
+      bg: "bg-yellow-50 dark:bg-yellow-900/20"
+    },
   ];
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">Seller Dashboard</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Seller Dashboard</h1>
+        {isLoading && <Loader2 className="h-5 w-5 animate-spin text-orange-500" />}
+      </div>
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsDisplay.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900"
+            className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 transition-all hover:shadow-md"
           >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</p>
                 <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</p>
               </div>
-              <stat.icon className={`h-10 w-10 ${stat.color}`} />
+              <div className={`rounded-xl p-3 ${stat.bg}`}>
+                <stat.icon className={`h-8 w-8 ${stat.color}`} />
+              </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Today Summary */}
+      {stats && (
+        <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">Tổng quan hôm nay</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Đơn hàng</p>
+              <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{stats.today.orders}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Doanh thu</p>
+              <p className="mt-1 text-xl font-bold text-green-600">{formatCurrency(stats.today.revenue)}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Sản phẩm bán</p>
+              <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{stats.today.products_sold}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Link

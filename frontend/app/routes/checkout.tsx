@@ -89,19 +89,20 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create order with shipping address
+      // Step 1: Create order with shipping address (flat structure as backend expects)
       const orderData = {
-        shipping_address: {
-          full_name: data.full_name,
-          phone: data.phone,
-          address_line1: data.address,
-          city: data.city,
-          state: data.district, // district maps to state in backend
-          country: "Vietnam",
-          postal_code: data.ward || "", // ward as postal code
-        },
-        notes: data.note || "",
+        // Shipping address fields (flat)
+        shipping_name: data.full_name,
+        shipping_phone: data.phone,
+        shipping_address: data.address,
+        shipping_city: data.city,
+        shipping_state: data.district, // district maps to state in backend
+        shipping_country: "Vietnam",
+        shipping_postal_code: data.ward || "",
+        // Optional fields
+        customer_note: data.note || "",
         coupon_code: data.coupon_code || undefined,
+        payment_method: data.payment_method,
       };
 
       const orderResponse = await ordersApi.createOrder(orderData);

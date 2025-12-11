@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
+import { authApi } from "~/lib/services";
 import { Button, Input, Card } from "~/components/ui";
 import { cn, getImageUrl } from "~/lib/utils";
 import toast from "react-hot-toast";
@@ -80,13 +81,22 @@ export default function SettingsPage() {
     setIsSaving(true);
 
     try {
-      // TODO: Implement API call to update user profile via store or service
-      // Mocking success for UI demo
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Call API to update user profile
+      await authApi.updateProfile({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        phone: formData.phone,
+        // Note: Avatar upload should be handled separately with FormData if needed
+      });
+      
+      // Refresh auth state to get updated user data
+      await checkAuth();
+      
       toast.success("Cập nhật thông tin thành công!");
       navigate("/account/profile");
-    } catch (error) {
-      toast.error("Có lỗi xảy ra. Vui lòng thử lại.");
+    } catch (error: any) {
+      const message = error.response?.data?.detail || "Có lỗi xảy ra. Vui lòng thử lại.";
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }

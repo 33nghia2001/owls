@@ -142,6 +142,85 @@ export const productsApi = {
   },
 };
 
+// Seller Product APIs (for vendors to manage their products)
+export const sellerProductsApi = {
+  getMyProducts: async (params?: { page?: number; status?: string }) => {
+    const response = await api.get("/products/my_products/", { params });
+    return response.data;
+  },
+
+  createProduct: async (data: FormData) => {
+    const response = await api.post("/products/", data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  updateProduct: async (slug: string, data: FormData | object) => {
+    const isFormData = data instanceof FormData;
+    const response = await api.patch(`/products/${slug}/`, data, {
+      headers: isFormData ? { "Content-Type": "multipart/form-data" } : {},
+    });
+    return response.data;
+  },
+
+  deleteProduct: async (slug: string) => {
+    await api.delete(`/products/${slug}/`);
+  },
+
+  uploadImages: async (slug: string, images: File[]) => {
+    const formData = new FormData();
+    images.forEach((img) => formData.append("images", img));
+    const response = await api.post(`/products/${slug}/upload_images/`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+};
+
+// Inventory APIs (for vendors to manage stock)
+export const inventoryApi = {
+  getInventory: async (params?: { page?: number }) => {
+    const response = await api.get("/inventory/", { params });
+    return response.data;
+  },
+
+  getLowStock: async () => {
+    const response = await api.get("/inventory/low_stock/");
+    return response.data;
+  },
+
+  createInventory: async (data: {
+    product?: string;
+    variant?: string;
+    quantity: number;
+    low_stock_threshold?: number;
+    warehouse_location?: string;
+  }) => {
+    const response = await api.post("/inventory/", data);
+    return response.data;
+  },
+
+  updateInventory: async (id: string, data: Partial<{
+    quantity: number;
+    low_stock_threshold: number;
+    warehouse_location: string;
+  }>) => {
+    const response = await api.patch(`/inventory/${id}/`, data);
+    return response.data;
+  },
+
+  adjustStock: async (id: string, quantity: number, note?: string) => {
+    const response = await api.post(`/inventory/${id}/adjust/`, { quantity, note });
+    return response.data;
+  },
+
+  addStock: async (id: string, quantity: number, note?: string) => {
+    const response = await api.post(`/inventory/${id}/add_stock/`, { quantity, note });
+    return response.data;
+  },
+};
+
 // Cart APIs
 export const cartApi = {
   getCart: async (guestCartId?: string | null) => {
@@ -214,11 +293,27 @@ export const ordersApi = {
   },
 
   createOrder: async (data: {
-    shipping_address_id?: string;
-    shipping_address?: Partial<ShippingAddress>;
-    shipping_method_id?: string;
-    notes?: string;
+    // Shipping address (flat structure)
+    shipping_name: string;
+    shipping_phone: string;
+    shipping_address: string;
+    shipping_city: string;
+    shipping_state: string;
+    shipping_country?: string;
+    shipping_postal_code?: string;
+    // Optional billing (same_as_shipping default true)
+    same_as_shipping?: boolean;
+    billing_name?: string;
+    billing_phone?: string;
+    billing_address?: string;
+    billing_city?: string;
+    billing_state?: string;
+    billing_country?: string;
+    billing_postal_code?: string;
+    // Other
     coupon_code?: string;
+    customer_note?: string;
+    payment_method: "cod" | "vnpay" | "stripe";
   }) => {
     const response = await api.post("/orders/", data);
     return response.data;
@@ -226,6 +321,24 @@ export const ordersApi = {
 
   cancelOrder: async (id: string) => {
     const response = await api.post(`/orders/${id}/cancel/`);
+    return response.data;
+  },
+};
+
+// Vendor Orders APIs (for Sellers)
+export const vendorOrdersApi = {
+  getOrders: async (params?: { page?: number; status?: string }) => {
+    const response = await api.get("/orders/vendor-orders/", { params });
+    return response.data;
+  },
+
+  getOrderItem: async (id: string) => {
+    const response = await api.get(`/orders/vendor-orders/${id}/`);
+    return response.data;
+  },
+
+  updateOrderItemStatus: async (id: string, data: { status: string; note?: string }) => {
+    const response = await api.post(`/orders/vendor-orders/${id}/update_status/`, data);
     return response.data;
   },
 };
@@ -332,6 +445,28 @@ export const vendorsApi = {
 
   getVendorProducts: async (slug: string, params?: object) => {
     const response = await api.get(`/vendors/${slug}/products/`, { params });
+    return response.data;
+  },
+};
+
+// Vendor Analytics APIs (for Seller Dashboard)
+export const vendorAnalyticsApi = {
+  getDashboardStats: async () => {
+    const response = await api.get("/analytics/vendor-analytics/");
+    return response.data;
+  },
+
+  getOrdersChart: async (days: number = 30) => {
+    const response = await api.get("/analytics/vendor-analytics/orders_chart/", {
+      params: { days },
+    });
+    return response.data;
+  },
+
+  getRevenueChart: async (days: number = 30) => {
+    const response = await api.get("/analytics/vendor-analytics/revenue_chart/", {
+      params: { days },
+    });
     return response.data;
   },
 };
