@@ -6,11 +6,15 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import { useEffect } from "react";
 
-import type { Route } from "./+types/root";
 import "./app.css";
+import { Header, Footer, CartSidebar } from "~/components/layout";
+import { useAuthStore, useCartStore } from "~/lib/stores";
+import { TooltipProvider } from "~/components/ui/tooltip";
+import { Toaster } from "~/components/ui/toast";
 
-export const links: Route.LinksFunction = () => [
+export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -25,7 +29,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="vi">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -42,10 +46,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  const { checkAuth } = useAuthStore();
+  const { fetchCart } = useCartStore();
+
+  useEffect(() => {
+    checkAuth();
+    fetchCart();
+  }, []);
+
+  return (
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <Footer />
+        <CartSidebar />
+        <Toaster />
+      </div>
+    </TooltipProvider>
+  );
 }
 
-export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+export function ErrorBoundary({ error }: { error: unknown }) {
   let message = "Oops!";
   let details = "An unexpected error occurred.";
   let stack: string | undefined;
