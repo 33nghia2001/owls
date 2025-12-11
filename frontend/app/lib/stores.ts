@@ -183,6 +183,7 @@ interface WishlistState {
   addItem: (productId: string) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   isInWishlist: (productId: string) => boolean;
+  clearWishlist: () => void;
 }
 
 export const useWishlistStore = create<WishlistState>()(
@@ -231,6 +232,12 @@ export const useWishlistStore = create<WishlistState>()(
           items: state.items.filter((id) => id !== productId),
         }));
       },
+
+        clearWishlist: () => {
+          // Clear local wishlist. For authenticated users we don't attempt
+          // to clear server-side wishlist in bulk; this keeps behavior simple.
+          set({ items: [] });
+        },
 
       isInWishlist: (productId) => get().items.includes(productId),
     }),

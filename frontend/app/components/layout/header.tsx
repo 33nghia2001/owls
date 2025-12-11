@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   Search,
   ShoppingCart,
@@ -11,17 +11,15 @@ import {
   Package,
   Settings,
   Store,
-  Grid3X3,
-  Sparkles,
-  Tag,
-  Truck,
-  Phone,
   HelpCircle,
+  Phone,
+  Truck,
+  Bell
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "~/components/ui";
-import { useAuthStore, useCartStore, useUIStore } from "~/lib/stores";
+import { useAuthStore, useCartStore, useUIStore, useWishlistStore } from "~/lib/stores";
 import { cn } from "~/lib/utils";
 import {
   DropdownMenu,
@@ -35,14 +33,25 @@ import { Avatar } from "~/components/ui/avatar";
 
 export function Header() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Stores
   const { user, isAuthenticated, logout } = useAuthStore();
   const { itemCount } = useCartStore();
+  const { items: wishlistItems } = useWishlistStore();
   const { toggleMobileMenu, toggleCartSidebar, isMobileMenuOpen } = useUIStore();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
 
-  // Track scroll for header style
+  // Local State
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Sync search input with URL param
+  useEffect(() => {
+    setSearchQuery(searchParams.get("q") || "");
+  }, [searchParams]);
+
+  // Handle Scroll Effect
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
@@ -64,151 +73,121 @@ export function Header() {
   };
 
   return (
-    <header className={cn(
-      "sticky top-0 z-50 w-full transition-all duration-300",
-      isScrolled 
-        ? "border-b border-gray-200/80 bg-white/95 shadow-sm backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-950/95" 
-        : "border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
-    )}>
-      {/* Top bar */}
-      <div className="hidden border-b border-gray-100 bg-gradient-to-r from-orange-50 to-amber-50 py-2 text-xs text-gray-600 dark:border-gray-800 dark:from-gray-900 dark:to-gray-900 dark:text-gray-400 lg:block">
+    <header 
+      className={cn(
+        "sticky top-0 z-40 w-full transition-all duration-300",
+        isScrolled 
+          ? "border-b border-gray-200/80 bg-white/95 shadow-sm backdrop-blur-md dark:border-gray-800/80 dark:bg-gray-950/95" 
+          : "border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+      )}
+    >
+      {/* 1. Top Bar (Desktop Only) */}
+      <div className="hidden border-b border-gray-100 bg-gray-50 py-2 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400 lg:block">
         <div className="container mx-auto flex items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <Phone className="h-3.5 w-3.5 text-orange-500" />
-              Hotline: <strong className="text-orange-600">1900 1234</strong>
+          <div className="flex items-center gap-6">
+            <span className="flex items-center gap-1.5 hover:text-orange-600 cursor-pointer transition-colors">
+              <Phone className="h-3.5 w-3.5" />
+              Hotline: <span className="font-bold">1900 1234</span>
             </span>
-            <span className="text-gray-300">|</span>
-            <Link to="/seller" className="flex items-center gap-1 transition-colors hover:text-orange-500">
+            <Link to="/seller" className="flex items-center gap-1.5 hover:text-orange-600 transition-colors">
               <Store className="h-3.5 w-3.5" />
-              Bán hàng cùng OWLS
+              Kênh Người Bán
             </Link>
-            <span className="text-gray-300">|</span>
-            <Link to="/help" className="flex items-center gap-1 transition-colors hover:text-orange-500">
+          </div>
+          <div className="flex items-center gap-6">
+            <Link to="/help" className="flex items-center gap-1.5 hover:text-orange-600 transition-colors">
               <HelpCircle className="h-3.5 w-3.5" />
               Trợ giúp
             </Link>
-          </div>
-          <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
-              <Truck className="h-3.5 w-3.5 text-green-500" />
-              Miễn phí vận chuyển đơn từ 500K
+              <Truck className="h-3.5 w-3.5" />
+              Tra cứu đơn hàng
             </span>
             {!isAuthenticated && (
-              <>
-                <span className="text-gray-300">|</span>
-                <Link to="/register" className="font-medium transition-colors hover:text-orange-500">
-                  Đăng ký
-                </Link>
-                <span className="text-gray-300">|</span>
-                <Link to="/login" className="font-medium transition-colors hover:text-orange-500">
-                  Đăng nhập
-                </Link>
-              </>
+              <div className="flex items-center gap-3 border-l border-gray-200 pl-4 dark:border-gray-700">
+                <Link to="/auth/register" className="hover:text-orange-600 transition-colors">Đăng ký</Link>
+                <Link to="/auth/login" className="hover:text-orange-600 transition-colors">Đăng nhập</Link>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Main header */}
+      {/* 2. Main Header */}
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between gap-4 lg:h-20">
-          {/* Mobile menu button */}
-          <motion.button
+          
+          {/* Mobile Menu Toggle */}
+          <button
             onClick={toggleMobileMenu}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 lg:hidden dark:bg-gray-800"
-            aria-label="Menu"
-            whileTap={{ scale: 0.95 }}
+            className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800"
           >
-            <AnimatePresence mode="wait">
-              {isMobileMenuOpen ? (
-                <motion.div
-                  key="close"
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
-                >
-                  <X className="h-5 w-5" />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="menu"
-                  initial={{ rotate: 90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: -90, opacity: 0 }}
-                >
-                  <Menu className="h-5 w-5" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <motion.span 
-              className="text-2xl font-bold lg:text-3xl"
-              whileHover={{ scale: 1.02 }}
-            >
-              <span className="text-orange-500">🦉 OWLS</span>
-            </motion.span>
+          <Link to="/" className="flex-shrink-0">
+            <span className="flex items-center gap-2 text-2xl font-black tracking-tighter text-gray-900 dark:text-white">
+              <span className="text-4xl text-orange-500">🦉</span>
+              <span className="hidden sm:inline-block">OWLS</span>
+            </span>
           </Link>
 
-          {/* Search bar - Desktop */}
-          <form
-            onSubmit={handleSearch}
-            className="hidden flex-1 max-w-2xl lg:flex"
-          >
-            <div className="relative w-full">
+          {/* Search Bar (Desktop & Tablet) */}
+          <div className="hidden flex-1 max-w-2xl px-8 lg:block">
+            <form onSubmit={handleSearch} className="relative group">
               <div className={cn(
-                "relative flex overflow-hidden rounded-2xl border-2 transition-all duration-300 bg-gray-100 dark:bg-gray-800",
+                "flex h-11 w-full items-center overflow-hidden rounded-full border-2 transition-all duration-300",
                 isSearchFocused 
-                  ? "border-orange-500 shadow-lg shadow-orange-500/10" 
-                  : "border-gray-200 dark:border-gray-700"
+                  ? "border-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.1)] bg-white dark:bg-gray-900" 
+                  : "border-gray-100 bg-gray-100 dark:border-gray-800 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
               )}>
                 <input
                   type="text"
-                  placeholder="Tìm kiếm sản phẩm, thương hiệu, và hơn thế nữa..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={() => setIsSearchFocused(false)}
-                  className="flex-1 bg-transparent py-3 pl-5 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-500 dark:text-white dark:placeholder:text-gray-400"
+                  placeholder="Tìm kiếm sản phẩm, thương hiệu..."
+                  className="flex-1 bg-transparent px-5 text-sm outline-none placeholder:text-gray-400 dark:text-white"
                 />
-                <button
+                <button 
                   type="submit"
-                  className="flex items-center justify-center bg-gradient-to-r from-orange-500 to-orange-600 px-6 text-white transition-all hover:from-orange-600 hover:to-orange-700"
+                  className="flex h-full w-14 items-center justify-center text-gray-400 transition-colors hover:text-orange-500"
                 >
                   <Search className="h-5 w-5" />
                 </button>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
 
-          {/* Right side actions */}
-          <div className="flex items-center gap-1 lg:gap-2">
-            {/* Search button - Mobile */}
-            <Link
-              to="/search"
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition-colors hover:bg-gray-100 lg:hidden dark:text-gray-300 dark:hover:bg-gray-800"
-            >
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            
+            {/* Mobile Search Trigger */}
+            <Link to="/search" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800">
               <Search className="h-5 w-5" />
             </Link>
 
             {/* Wishlist */}
-            <Link
-              to="/wishlist"
-              className="hidden h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition-colors hover:bg-gray-100 hover:text-red-500 sm:flex dark:text-gray-300 dark:hover:bg-gray-800"
-              aria-label="Yêu thích"
+            <Link 
+              to="/wishlist" 
+              className="relative hidden h-10 w-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-orange-50 hover:text-orange-600 sm:flex dark:text-gray-300 dark:hover:bg-orange-900/20"
+              title="Yêu thích"
             >
               <Heart className="h-5 w-5" />
+              {wishlistItems.length > 0 && (
+                <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-gray-950">
+                  {wishlistItems.length}
+                </span>
+              )}
             </Link>
 
-            {/* Cart */}
-            <motion.button
+            {/* Cart Sidebar Trigger */}
+            <button 
               onClick={toggleCartSidebar}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              aria-label="Giỏ hàng"
-              whileTap={{ scale: 0.95 }}
+              className="relative flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:text-gray-300 dark:hover:bg-orange-900/20"
+              title="Giỏ hàng"
             >
               <ShoppingCart className="h-5 w-5" />
               <AnimatePresence>
@@ -217,170 +196,207 @@ export function Header() {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-xs font-bold text-white shadow-lg"
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-gray-950"
                   >
                     {itemCount > 99 ? "99+" : itemCount}
                   </motion.span>
                 )}
               </AnimatePresence>
-            </motion.button>
+            </button>
 
-            {/* User menu */}
+            {/* User Dropdown */}
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 lg:px-3 lg:py-2">
-                    <Avatar
-                      src={user?.avatar || undefined}
-                      alt={user?.full_name}
-                      fallback={user?.first_name?.[0] || "U"}
-                      size="sm"
+                  <button className="ml-2 flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3 transition-all hover:border-orange-200 hover:shadow-md dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600">
+                    <Avatar 
+                      src={user?.avatar || undefined} 
+                      alt={user?.full_name} 
+                      fallback={user?.first_name?.[0]} 
+                      className="h-8 w-8"
                     />
-                    <span className="hidden max-w-[100px] truncate text-sm font-medium lg:block">
-                      {user?.first_name || "Tài khoản"}
-                    </span>
-                    <ChevronDown className="hidden h-4 w-4 text-gray-400 lg:block" />
+                    <div className="hidden flex-col items-start text-left sm:flex">
+                      <span className="w-20 truncate text-xs font-bold text-gray-900 dark:text-gray-100">
+                        {user?.last_name}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-3 w-3 text-gray-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-60 p-2">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user?.full_name}</p>
-                      <p className="text-xs text-gray-500">{user?.email}</p>
+                      <p className="text-sm font-medium leading-none">{user?.full_name}</p>
+                      <p className="text-xs leading-none text-gray-500">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/account" className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Tài khoản của tôi
+                  <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-2.5 focus:bg-orange-50 dark:focus:bg-gray-800">
+                    <Link to="/account">
+                      <User className="mr-2 h-4 w-4 text-gray-500" />
+                      <span>Hồ sơ cá nhân</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/account/orders" className="flex items-center gap-2">
-                      <Package className="h-4 w-4" />
-                      Đơn hàng của tôi
+                  <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-2.5 focus:bg-orange-50 dark:focus:bg-gray-800">
+                    <Link to="/account/orders">
+                      <Package className="mr-2 h-4 w-4 text-gray-500" />
+                      <span>Đơn mua</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/wishlist" className="flex items-center gap-2">
-                      <Heart className="h-4 w-4" />
-                      Sản phẩm yêu thích
-                    </Link>
-                  </DropdownMenuItem>
+                  
                   {user?.is_vendor && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link to="/seller" className="flex items-center gap-2">
-                          <Store className="h-4 w-4" />
-                          Quản lý cửa hàng
+                      <DropdownMenuLabel className="text-xs text-orange-600 dark:text-orange-500">
+                        Kênh Người Bán
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-2.5 focus:bg-orange-50 dark:focus:bg-gray-800">
+                        <Link to="/seller">
+                          <Store className="mr-2 h-4 w-4 text-orange-500" />
+                          <span>Quản lý Shop</span>
                         </Link>
                       </DropdownMenuItem>
                     </>
                   )}
+                  
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/account/settings" className="flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Cài đặt
+                  <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-2.5 focus:bg-orange-50 dark:focus:bg-gray-800">
+                    <Link to="/account/settings">
+                      <Settings className="mr-2 h-4 w-4 text-gray-500" />
+                      <span>Cài đặt</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={handleLogout}
-                    className="text-red-500 focus:text-red-500"
+                    className="cursor-pointer rounded-lg p-2.5 text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950/30"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    Đăng xuất
+                    <span>Đăng xuất</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Link to="/login" className="hidden lg:block">
-                <Button variant="primary" size="sm">
-                  Đăng nhập
-                </Button>
-              </Link>
+              <div className="ml-2 hidden items-center gap-3 sm:flex">
+                 <Link to="/auth/login">
+                  <Button variant="ghost" className="font-semibold text-gray-600 hover:text-orange-600 hover:bg-orange-50">
+                    Đăng nhập
+                  </Button>
+                </Link>
+                <Link to="/auth/register">
+                  <Button className="rounded-full bg-orange-500 px-6 font-bold text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600 hover:shadow-orange-500/40">
+                    Đăng ký
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* 3. Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-t border-gray-200 bg-white lg:hidden dark:border-gray-800 dark:bg-gray-950"
-          >
-            <div className="px-4 py-4">
-              <form onSubmit={handleSearch} className="mb-4">
-                <div className="relative">
-              <input
-                type="text"
-                placeholder="Tìm kiếm sản phẩm..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2.5 pl-4 pr-12 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900"
-              />
-              <button
-                type="submit"
-                className="absolute right-0 top-0 flex h-full items-center justify-center rounded-r-lg bg-orange-500 px-4 text-white"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            </div>
-          </form>
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={toggleMobileMenu}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 top-0 z-50 w-[280px] bg-white shadow-2xl dark:bg-gray-950 lg:hidden"
+            >
+              <div className="flex h-full flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-gray-100 p-4 dark:border-gray-800">
+                  <span className="text-xl font-black tracking-tight text-orange-500">OWLS</span>
+                  <button onClick={toggleMobileMenu} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
 
-          <nav className="space-y-1">
-            <Link
-              to="/categories"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-gray-800"
-              onClick={toggleMobileMenu}
-            >
-              <Grid3X3 className="h-5 w-5" />
-              Danh mục
-            </Link>
-            <Link
-              to="/deals"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-gray-800"
-              onClick={toggleMobileMenu}
-            >
-              <Tag className="h-5 w-5" />
-              Khuyến mãi
-            </Link>
-            <Link
-              to="/shops"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-gray-800"
-              onClick={toggleMobileMenu}
-            >
-              <Store className="h-5 w-5" />
-              Cửa hàng
-            </Link>
-            {!isAuthenticated && (
-              <>
-                <hr className="my-2 border-gray-200 dark:border-gray-700" />
-                <Link
-                  to="/login"
-                  className="flex items-center gap-3 rounded-xl bg-orange-500 px-4 py-3 font-medium text-white"
-                  onClick={toggleMobileMenu}
-                >
-                  Đăng nhập
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center gap-3 rounded-xl border border-orange-500 px-4 py-3 font-medium text-orange-500"
-                  onClick={toggleMobileMenu}
-                >
-                  Đăng ký
-                </Link>
-              </>
-            )}
-          </nav>
-          </div>
-          </motion.div>
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  {isAuthenticated ? (
+                    <div className="mb-6 rounded-2xl bg-orange-50 p-4 dark:bg-orange-900/10">
+                      <div className="flex items-center gap-3">
+                        <Avatar src={user?.avatar || undefined} alt={user?.full_name} fallback={user?.first_name?.[0]} />
+                        <div className="overflow-hidden">
+                          <p className="truncate font-bold text-gray-900 dark:text-white">{user?.full_name}</p>
+                          <p className="truncate text-xs text-gray-500">{user?.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-6 grid grid-cols-2 gap-3">
+                      <Link to="/auth/login" onClick={toggleMobileMenu}>
+                        <Button variant="outline" className="w-full justify-center">Đăng nhập</Button>
+                      </Link>
+                      <Link to="/auth/register" onClick={toggleMobileMenu}>
+                        <Button className="w-full justify-center bg-orange-500 text-white hover:bg-orange-600">Đăng ký</Button>
+                      </Link>
+                    </div>
+                  )}
+
+                  <nav className="space-y-1">
+                    <p className="mb-2 px-2 text-xs font-bold uppercase text-gray-400">Mua sắm</p>
+                    {[
+                      { to: "/", label: "Trang chủ", icon: Store },
+                      { to: "/products", label: "Tất cả sản phẩm", icon: Package },
+                      { to: "/categories", label: "Danh mục", icon: Menu },
+                      { to: "/shops", label: "Cửa hàng", icon: Truck },
+                      { to: "/search", label: "Tìm kiếm", icon: Search },
+                    ].map((item) => (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={toggleMobileMenu}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      >
+                        <item.icon className="h-5 w-5 text-gray-500" />
+                        {item.label}
+                      </Link>
+                    ))}
+
+                    <div className="my-4 border-t border-gray-100 dark:border-gray-800" />
+                    
+                    <p className="mb-2 px-2 text-xs font-bold uppercase text-gray-400">Cá nhân</p>
+                    <Link to="/wishlist" onClick={toggleMobileMenu} className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800">
+                      <Heart className="h-5 w-5 text-gray-500" />
+                      Yêu thích
+                    </Link>
+                    {isAuthenticated && (
+                       <>
+                        <Link to="/account/orders" onClick={toggleMobileMenu} className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <Package className="h-5 w-5 text-gray-500" />
+                          Đơn hàng
+                        </Link>
+                        <Link to="/account/settings" onClick={toggleMobileMenu} className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <Settings className="h-5 w-5 text-gray-500" />
+                          Cài đặt
+                        </Link>
+                        <button 
+                          onClick={() => {
+                            handleLogout();
+                            toggleMobileMenu();
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <LogOut className="h-5 w-5" />
+                          Đăng xuất
+                        </button>
+                       </>
+                    )}
+                  </nav>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </header>
