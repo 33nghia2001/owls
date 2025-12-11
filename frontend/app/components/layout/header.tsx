@@ -105,8 +105,8 @@ export function Header() {
             </span>
             {!isAuthenticated && (
               <div className="flex items-center gap-3 border-l border-gray-200 pl-4 dark:border-gray-700">
-                <Link to="/auth/register" className="hover:text-orange-600 transition-colors">Đăng ký</Link>
-                <Link to="/auth/login" className="hover:text-orange-600 transition-colors">Đăng nhập</Link>
+                <Link to="/register" className="hover:text-orange-600 transition-colors">Đăng ký</Link>
+                <Link to="/login" className="hover:text-orange-600 transition-colors">Đăng nhập</Link>
               </div>
             )}
           </div>
@@ -334,10 +334,10 @@ export function Header() {
                     </div>
                   ) : (
                     <div className="mb-6 grid grid-cols-2 gap-3">
-                      <Link to="/auth/login" onClick={toggleMobileMenu}>
+                      <Link to="/login" onClick={toggleMobileMenu}>
                         <Button variant="outline" className="w-full justify-center">Đăng nhập</Button>
                       </Link>
-                      <Link to="/auth/register" onClick={toggleMobileMenu}>
+                      <Link to="/register" onClick={toggleMobileMenu}>
                         <Button className="w-full justify-center bg-orange-500 text-white hover:bg-orange-600">Đăng ký</Button>
                       </Link>
                     </div>

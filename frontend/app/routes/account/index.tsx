@@ -43,7 +43,7 @@ export async function clientLoader() {
     };
   } catch (error: any) {
     if (error.response?.status === 401) {
-      window.location.href = "/auth/login";
+      window.location.href = "/login";
       return null;
     }
     throw error;

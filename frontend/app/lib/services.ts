@@ -25,7 +25,7 @@ export const authApi = {
       { email, password, guest_cart_id: guestCartId }
     );
     setTokens(response.data.tokens);
-    setGuestCartId(null); // Clear guest cart after merge
+    setGuestCartId(null);
     return response.data;
   },
 
@@ -35,7 +35,7 @@ export const authApi = {
       try {
         await api.post("/auth/logout/", { refresh: tokens.refresh });
       } catch {
-        // Ignore errors on logout
+        // Ignore errors
       }
     }
     setTokens(null);
@@ -142,9 +142,9 @@ export const productsApi = {
   },
 };
 
-// Seller Product APIs (for vendors to manage their products)
+// Seller Product APIs
 export const sellerProductsApi = {
-  getMyProducts: async (params?: { page?: number; status?: string }) => {
+  getMyProducts: async (params?: { page?: number; status?: string; search?: string }) => {
     const response = await api.get("/products/my_products/", { params });
     return response.data;
   },
@@ -178,7 +178,7 @@ export const sellerProductsApi = {
   },
 };
 
-// Inventory APIs (for vendors to manage stock)
+// Inventory APIs
 export const inventoryApi = {
   getInventory: async (params?: { page?: number }) => {
     const response = await api.get("/inventory/", { params });
@@ -236,7 +236,6 @@ export const cartApi = {
     guest_cart_id?: string | null;
   }) => {
     const response = await api.post("/cart/add/", data);
-    // Save guest cart ID if returned
     if (response.data.cart_id && !getTokens()) {
       setGuestCartId(response.data.cart_id);
     }
@@ -293,7 +292,6 @@ export const ordersApi = {
   },
 
   createOrder: async (data: {
-    // Shipping address (flat structure)
     shipping_name: string;
     shipping_phone: string;
     shipping_address: string;
@@ -301,7 +299,6 @@ export const ordersApi = {
     shipping_state: string;
     shipping_country?: string;
     shipping_postal_code?: string;
-    // Optional billing (same_as_shipping default true)
     same_as_shipping?: boolean;
     billing_name?: string;
     billing_phone?: string;
@@ -310,7 +307,6 @@ export const ordersApi = {
     billing_state?: string;
     billing_country?: string;
     billing_postal_code?: string;
-    // Other
     coupon_code?: string;
     customer_note?: string;
     payment_method: "cod" | "vnpay" | "stripe";
@@ -325,9 +321,9 @@ export const ordersApi = {
   },
 };
 
-// Vendor Orders APIs (for Sellers)
+// Vendor Orders APIs
 export const vendorOrdersApi = {
-  getOrders: async (params?: { page?: number; status?: string }) => {
+  getOrders: async (params?: { page?: number; status?: string; search?: string }) => {
     const response = await api.get("/orders/vendor-orders/", { params });
     return response.data;
   },
@@ -343,33 +339,28 @@ export const vendorOrdersApi = {
   },
 };
 
-// Shipping Addresses APIs
+// Address APIs
 export const addressApi = {
   getAddresses: async () => {
-    // FIX: Changed from "/shipping/addresses/" to "/addresses/" to match backend urls.py
     const response = await api.get("/addresses/");
     return response.data;
   },
 
   createAddress: async (data: Partial<ShippingAddress>) => {
-    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
     const response = await api.post("/addresses/", data);
     return response.data;
   },
 
   updateAddress: async (id: string, data: Partial<ShippingAddress>) => {
-    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
     const response = await api.patch(`/addresses/${id}/`, data);
     return response.data;
   },
 
   deleteAddress: async (id: string) => {
-    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
     await api.delete(`/addresses/${id}/`);
   },
 
   setDefaultAddress: async (id: string) => {
-    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
     const response = await api.post(`/addresses/${id}/set_default/`);
     return response.data;
   },
@@ -452,9 +443,21 @@ export const vendorsApi = {
     const response = await api.get(`/vendors/${slug}/products/`, { params });
     return response.data;
   },
+
+  // --- MỚI THÊM: Đăng ký & Lấy thông tin Vendor của User ---
+  register: async (data: any) => {
+    const response = await api.post("/vendors/register/", data);
+    return response.data;
+  },
+
+  getCurrentVendor: async () => {
+    const response = await api.get("/vendors/me/");
+    return response.data;
+  }
+  // ---------------------------------------------------------
 };
 
-// Vendor Analytics APIs (for Seller Dashboard)
+// Vendor Analytics APIs
 export const vendorAnalyticsApi = {
   getDashboardStats: async () => {
     const response = await api.get("/analytics/vendor-analytics/");

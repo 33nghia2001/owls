@@ -119,7 +119,7 @@ export default function SettingsPage() {
   }
 
   if (!user) {
-    navigate("/auth/login");
+    navigate("/login");
     return null;
   }
 

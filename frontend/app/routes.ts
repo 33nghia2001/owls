@@ -39,9 +39,11 @@ export default [
   
   // Seller dashboard
   route("seller", "routes/seller/index.tsx"),
+  route("seller/register", "routes/seller/register.tsx"), // <-- MỚI THÊM
   route("seller/products", "routes/seller/products.tsx"),
   route("seller/products/new", "routes/seller/products-new.tsx"),
   route("seller/orders", "routes/seller/orders.tsx"),
   route("seller/orders/:id", "routes/seller/order-detail.tsx"),
   route("seller/settings", "routes/seller/settings.tsx"),
+
 ] satisfies RouteConfig;
