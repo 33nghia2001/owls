@@ -163,7 +163,9 @@ export default function ProfilePage() {
                 </div>
                 
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center justify-center gap-2">
-                  {user.full_name || user.email.split('@')[0]}
+                  {user.first_name && user.last_name 
+                    ? `${user.first_name} ${user.last_name}` 
+                    : (user.full_name || user.email.split('@')[0])}
                   {user.is_vendor && (
                     <div className="rounded-full bg-blue-500/20 p-1" title="Đã xác minh người bán">
                       <CheckCircle2 className="h-4 w-4 text-blue-500" fill="currentColor" color="white" />

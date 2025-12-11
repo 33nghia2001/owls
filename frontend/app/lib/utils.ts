@@ -46,6 +46,13 @@ export function slugify(str: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+export function formatPrice(money: { amount: string; currency: string } | number): string {
+  if (typeof money === "number") {
+    return formatCurrency(money);
+  }
+  return formatCurrency(parseFloat(money.amount), money.currency);
+}
+
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return "/placeholder.jpg";
   if (path.startsWith("http")) return path;
