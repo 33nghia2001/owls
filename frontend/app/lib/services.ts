@@ -346,26 +346,31 @@ export const vendorOrdersApi = {
 // Shipping Addresses APIs
 export const addressApi = {
   getAddresses: async () => {
-    const response = await api.get("/shipping/addresses/");
+    // FIX: Changed from "/shipping/addresses/" to "/addresses/" to match backend urls.py
+    const response = await api.get("/addresses/");
     return response.data;
   },
 
   createAddress: async (data: Partial<ShippingAddress>) => {
-    const response = await api.post("/shipping/addresses/", data);
+    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
+    const response = await api.post("/addresses/", data);
     return response.data;
   },
 
   updateAddress: async (id: string, data: Partial<ShippingAddress>) => {
-    const response = await api.patch(`/shipping/addresses/${id}/`, data);
+    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
+    const response = await api.patch(`/addresses/${id}/`, data);
     return response.data;
   },
 
   deleteAddress: async (id: string) => {
-    await api.delete(`/shipping/addresses/${id}/`);
+    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
+    await api.delete(`/addresses/${id}/`);
   },
 
   setDefaultAddress: async (id: string) => {
-    const response = await api.post(`/shipping/addresses/${id}/set_default/`);
+    // FIX: Changed from "/shipping/addresses/" to "/addresses/"
+    const response = await api.post(`/addresses/${id}/set_default/`);
     return response.data;
   },
 };
