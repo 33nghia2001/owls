@@ -1,22 +1,28 @@
 import { Link } from "react-router";
 import { X, Minus, Plus, ShoppingBag } from "lucide-react";
 import { Button } from "~/components/ui";
-import { useCartStore, useUIStore } from "~/lib/stores";
+import { useUIStore } from "~/lib/stores";
+import { useCart, useUpdateCartItem, useRemoveCartItem } from "~/lib/query";
 import { formatCurrency, getImageUrl } from "~/lib/utils";
+import type { CartItem } from "~/lib/types";
 
 export function CartSidebar() {
-  const { cart, isLoading, updateQuantity, removeItem } = useCartStore();
+  const { data: cart, isLoading } = useCart();
+  const updateCartItem = useUpdateCartItem();
+  const removeCartItem = useRemoveCartItem();
   const { isCartSidebarOpen, toggleCartSidebar } = useUIStore();
 
   if (!isCartSidebarOpen) return null;
 
-  const handleQuantityChange = async (itemId: string, newQuantity: number) => {
+  const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) {
-      await removeItem(itemId);
+      removeCartItem.mutate(itemId);
     } else {
-      await updateQuantity(itemId, newQuantity);
+      updateCartItem.mutate({ itemId, quantity: newQuantity });
     }
   };
+
+  const isPending = updateCartItem.isPending || removeCartItem.isPending;
 
   return (
     <>
@@ -61,7 +67,7 @@ export function CartSidebar() {
               </div>
             ) : (
               <ul className="space-y-4">
-                {cart.items.map((item) => (
+                {cart.items.map((item: CartItem) => (
                   <li
                     key={item.id}
                     className="flex gap-4 rounded-lg border border-gray-200 p-3 dark:border-gray-800"
@@ -99,7 +105,8 @@ export function CartSidebar() {
                             onClick={() =>
                               handleQuantityChange(item.id, item.quantity - 1)
                             }
-                            className="flex h-8 w-8 items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800"
+                            disabled={isPending}
+                            className="flex h-8 w-8 items-center justify-center hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
@@ -110,7 +117,8 @@ export function CartSidebar() {
                             onClick={() =>
                               handleQuantityChange(item.id, item.quantity + 1)
                             }
-                            className="flex h-8 w-8 items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800"
+                            disabled={isPending}
+                            className="flex h-8 w-8 items-center justify-center hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -125,8 +133,9 @@ export function CartSidebar() {
                     </div>
 
                     <button
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeCartItem.mutate(item.id)}
                       className="self-start p-1 text-gray-400 hover:text-red-500"
+                      disabled={isPending}
                     >
                       <X className="h-4 w-4" />
                     </button>

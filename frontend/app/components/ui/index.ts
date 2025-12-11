@@ -98,3 +98,11 @@ export {
   CardDescription,
   CardContent,
 } from "./card";
+
+// Image
+export {
+  Image,
+  ProductImage,
+  AvatarImage,
+  BannerImage,
+} from "./image";

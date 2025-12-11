@@ -7,12 +7,15 @@ import {
   ScrollRestoration,
 } from "react-router";
 import { useEffect } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import "./app.css";
 import { Header, Footer, CartSidebar } from "~/components/layout";
 import { useAuthStore, useCartStore } from "~/lib/stores";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
+import { queryClient } from "~/lib/query";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -55,17 +58,20 @@ export default function App() {
   }, []);
 
   return (
-    <TooltipProvider>
-      <div className="flex min-h-screen flex-col">
-        <Header />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <Footer />
-        <CartSidebar />
-        <Toaster />
-      </div>
-    </TooltipProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <div className="flex min-h-screen flex-col">
+          <Header />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <Footer />
+          <CartSidebar />
+          <Toaster />
+        </div>
+      </TooltipProvider>
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
   );
 }
 

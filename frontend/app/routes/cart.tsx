@@ -1,8 +1,8 @@
 import { Link, useNavigate } from "react-router";
-import { useEffect } from "react";
-import { Trash2 } from "lucide-react";
-import { useCartStore } from "~/lib/stores";
+import { Trash2, Loader2 } from "lucide-react";
+import { useCart, useUpdateCartItem, useRemoveCartItem } from "~/lib/query";
 import { formatCurrency } from "~/lib/utils";
+import type { CartItem } from "~/lib/types";
 
 export function meta() {
   return [
@@ -13,13 +13,34 @@ export function meta() {
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const { cart, fetchCart, updateQuantity, removeItem } = useCartStore();
+  const { data: cart, isLoading, isError } = useCart();
+  const updateCartItem = useUpdateCartItem();
+  const removeCartItem = useRemoveCartItem();
 
-  useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
-
+  const isPending = updateCartItem.isPending || removeCartItem.isPending;
   const hasItems = cart && cart.items.length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">Giỏ hàng</h1>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">Giỏ hàng</h1>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-900/20">
+          <p className="text-red-600 dark:text-red-400">Không thể tải giỏ hàng. Vui lòng thử lại.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -40,7 +61,7 @@ export default function CartPage() {
       {hasItems && (
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="space-y-4">
-            {cart.items.map((item) => (
+            {cart.items.map((item: CartItem) => (
               <div
                 key={item.id}
                 className="flex gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
@@ -64,8 +85,9 @@ export default function CartPage() {
                       )}
                     </div>
                     <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-gray-400 transition hover:text-red-500"
+                      onClick={() => removeCartItem.mutate(item.id)}
+                      disabled={isPending}
+                      className="text-gray-400 transition hover:text-red-500 disabled:opacity-50"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
@@ -75,16 +97,28 @@ export default function CartPage() {
                     <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-800">
                       <button
                         type="button"
-                        className="px-3 py-2 text-lg"
-                        onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                        disabled={isPending}
+                        className="px-3 py-2 text-lg disabled:opacity-50"
+                        onClick={() => 
+                          updateCartItem.mutate({
+                            itemId: item.id,
+                            quantity: Math.max(1, item.quantity - 1),
+                          })
+                        }
                       >
                         -
                       </button>
                       <span className="w-12 text-center text-sm font-medium">{item.quantity}</span>
                       <button
                         type="button"
-                        className="px-3 py-2 text-lg"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        disabled={isPending}
+                        className="px-3 py-2 text-lg disabled:opacity-50"
+                        onClick={() =>
+                          updateCartItem.mutate({
+                            itemId: item.id,
+                            quantity: item.quantity + 1,
+                          })
+                        }
                       >
                         +
                       </button>

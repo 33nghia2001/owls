@@ -1,17 +1,89 @@
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate, type LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, useNavigate, type LoaderFunctionArgs, type MetaFunction } from "react-router";
 import { Star, ShoppingCart, Heart, Truck, Shield } from "lucide-react";
 import { productsApi } from "~/lib/services";
 import type { Product, ProductVariant } from "~/lib/types";
 import { formatCurrency } from "~/lib/utils";
 import { useCartStore, useWishlistStore } from "~/lib/stores";
 
-export function meta({ data }: { data: { product?: Product } }) {
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const product = data?.product;
+  
+  if (!product) {
+    return [
+      { title: "Sản phẩm không tìm thấy - OWLS Marketplace" },
+      { name: "description", content: "Sản phẩm bạn tìm kiếm không tồn tại" },
+    ];
+  }
+
+  const title = product.meta_title || `${product.name} - OWLS Marketplace`;
+  const description = product.meta_description || product.short_description || product.description?.slice(0, 160);
+  const image = product.images?.[0]?.image || "/og-default.jpg";
+  const price = product.price?.amount;
+  const url = `https://owls.vn/products/${product.slug}`;
+
   return [
-    { title: `${data?.product?.name || "Sản phẩm"} - OWLS Marketplace` },
-    { name: "description", content: data?.product?.short_description || "Chi tiết sản phẩm" },
+    // Basic
+    { title },
+    { name: "description", content: description },
+    
+    // Open Graph
+    { property: "og:type", content: "product" },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:image", content: image },
+    { property: "og:url", content: url },
+    { property: "og:site_name", content: "OWLS Marketplace" },
+    
+    // Product specific OG
+    { property: "product:price:amount", content: price },
+    { property: "product:price:currency", content: "VND" },
+    { property: "product:availability", content: "in stock" },
+    { property: "product:brand", content: product.brand?.name || "OWLS" },
+    { property: "product:category", content: product.category?.name || "" },
+    
+    // Twitter Card
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: description },
+    { name: "twitter:image", content: image },
+    
+    // Additional SEO
+    { name: "robots", content: "index, follow" },
+    { name: "author", content: product.vendor?.shop_name || "OWLS Marketplace" },
+    { name: "keywords", content: [product.name, product.category?.name, product.brand?.name, ...product.tags].filter(Boolean).join(", ") },
+    
+    // Structured Data (JSON-LD)
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.name,
+        description: description,
+        image: product.images?.map((img: { image: string }) => img.image) || [],
+        brand: {
+          "@type": "Brand",
+          name: product.brand?.name || product.vendor?.shop_name,
+        },
+        offers: {
+          "@type": "Offer",
+          price: price,
+          priceCurrency: "VND",
+          availability: "https://schema.org/InStock",
+          seller: {
+            "@type": "Organization",
+            name: product.vendor?.shop_name,
+          },
+        },
+        aggregateRating: product.review_count > 0 ? {
+          "@type": "AggregateRating",
+          ratingValue: product.rating,
+          reviewCount: product.review_count,
+        } : undefined,
+      },
+    },
   ];
-}
+};
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const slug = params.slug as string;

@@ -1,14 +1,52 @@
-import { useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { useLoaderData, type LoaderFunctionArgs, type MetaFunction } from "react-router";
 import { vendorsApi } from "~/lib/services";
 import type { Vendor, ProductListItem } from "~/lib/types";
 import { ProductGrid } from "~/components/product/product-grid";
+import { generateMeta, generateOrganizationSchema } from "~/lib/seo";
 
-export function meta({ params }: { params: { slug?: string } }) {
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const vendor = data?.vendor;
+
+  if (!vendor) {
+    return [
+      { title: "Cửa hàng không tìm thấy - OWLS Marketplace" },
+      { name: "description", content: "Cửa hàng bạn tìm kiếm không tồn tại" },
+    ];
+  }
+
   return [
-    { title: `Cửa hàng ${params.slug} - OWLS` },
-    { name: "description", content: "Chi tiết cửa hàng" },
+    ...generateMeta({
+      title: `${vendor.shop_name} - Cửa hàng`,
+      description: vendor.description || `Khám phá ${vendor.total_products} sản phẩm từ ${vendor.shop_name} trên OWLS Marketplace`,
+      image: vendor.logo || vendor.banner,
+      url: `/shops/${vendor.slug}`,
+      type: "website",
+      keywords: [vendor.shop_name, "cửa hàng", "mua sắm", vendor.city].filter(Boolean) as string[],
+    }),
+    // JSON-LD for Organization/LocalBusiness
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        name: vendor.shop_name,
+        description: vendor.description,
+        image: vendor.logo,
+        url: `https://owls.vn/shops/${vendor.slug}`,
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: vendor.city,
+          addressRegion: vendor.state,
+          addressCountry: vendor.country,
+        },
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: vendor.rating,
+          reviewCount: vendor.total_sales,
+        },
+      },
+    },
   ];
-}
+};
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const slug = params.slug as string;
