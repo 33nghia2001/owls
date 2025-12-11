@@ -7,7 +7,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { productsApi, vendorsApi } from "~/lib/services";
 import { ProductGrid } from "~/components/product";
 import { Button } from "~/components/ui";
-import { cn, formatCurrency, getImageUrl } from "~/lib/utils";
+import { cn, formatPrice, getImageUrl } from "~/lib/utils";
 import type { Category, Vendor } from "~/lib/types";
 
 export function meta() {
@@ -192,7 +192,7 @@ export default function Home() {
                       </div>
                       <h4 className="font-semibold text-gray-900 dark:text-white truncate mt-1">{product.name}</h4>
                       <div className="flex items-center gap-2">
-                         <span className="text-lg font-bold text-red-600">{formatCurrency(parseFloat(product.price.amount))}</span>
+                         <span className="text-lg font-bold text-red-600">{formatPrice(product.price)}</span>
                       </div>
                    </div>
                 </div>
@@ -416,7 +416,7 @@ export default function Home() {
                           </div>
                           <Link to={`/products/${product.slug}`} className="block">
                             <h4 className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-red-600 dark:text-gray-100 min-h-[2.5em]">{product.name}</h4>
-                            <div className="mt-2 font-bold text-red-600">{formatCurrency(parseFloat(product.price.amount))}</div>
+                            <div className="mt-2 font-bold text-red-600">{formatPrice(product.price)}</div>
                             <div className="mt-1 text-xs text-gray-500">Đã bán {product.sold_count}</div>
                           </Link>
                         </div>
@@ -447,7 +447,7 @@ export default function Home() {
                              <div className="mb-1 text-xs font-bold text-green-600 uppercase tracking-wider">New Arrival</div>
                              <h4 className="line-clamp-2 font-medium text-gray-900 group-hover:text-green-700 dark:text-gray-100">{product.name}</h4>
                              <div className="mt-2 flex items-center justify-between">
-                                <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(parseFloat(product.price.amount))}</span>
+                                <span className="text-lg font-bold text-gray-900 dark:text-white">{formatPrice(product.price)}</span>
                                 <span className="text-xs text-gray-500">{product.vendor.shop_name}</span>
                              </div>
                           </div>

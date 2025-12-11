@@ -46,15 +46,79 @@ export function slugify(str: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-export function formatPrice(money: { amount: string; currency: string } | number): string {
-  if (typeof money === "number") {
-    return formatCurrency(money);
+/**
+ * Safely parse price from various formats:
+ * - Money object: { amount: string, currency: string }
+ * - String: "100000.00" (from djmoney)
+ * - Number: 100000
+ * - null/undefined: returns 0
+ */
+export function parsePrice(price: unknown): number {
+  if (price === null || price === undefined) return 0;
+  
+  // Money object format
+  if (typeof price === "object" && price !== null && "amount" in price) {
+    const moneyObj = price as { amount: string | number; currency?: string };
+    return typeof moneyObj.amount === "string" 
+      ? parseFloat(moneyObj.amount) || 0
+      : moneyObj.amount || 0;
   }
-  return formatCurrency(parseFloat(money.amount), money.currency);
+  
+  // String format (djmoney default: "100000.00")
+  if (typeof price === "string") {
+    return parseFloat(price) || 0;
+  }
+  
+  // Number format
+  if (typeof price === "number") {
+    return price;
+  }
+  
+  return 0;
 }
 
+/**
+ * Format price from various formats to currency string
+ */
+export function formatPrice(
+  price: unknown,
+  currency: string = "VND"
+): string {
+  const amount = parsePrice(price);
+  
+  // Try to get currency from Money object
+  if (typeof price === "object" && price !== null && "currency" in price) {
+    currency = (price as { currency: string }).currency || currency;
+  }
+  
+  return formatCurrency(amount, currency);
+}
+
+/**
+ * Get image URL, handling both relative paths and absolute URLs
+ * - Absolute URLs (http/https) from cloud storage: return as-is
+ * - Relative paths: prepend API URL
+ * - null/undefined: return placeholder
+ */
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return "/placeholder.jpg";
-  if (path.startsWith("http")) return path;
-  return `${import.meta.env.VITE_API_URL}${path}`;
+  
+  // Already an absolute URL (e.g., from Cloudinary, S3)
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  
+  // Data URL (base64)
+  if (path.startsWith("data:")) {
+    return path;
+  }
+  
+  // Relative path - prepend API URL
+  const baseUrl = import.meta.env.VITE_API_URL || "";
+  // Remove /api/v1 suffix if present for media URLs
+  const mediaBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
+  
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${mediaBaseUrl}${normalizedPath}`;
 }

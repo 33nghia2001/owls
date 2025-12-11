@@ -3,7 +3,7 @@ import { X, Minus, Plus, ShoppingBag } from "lucide-react";
 import { Button } from "~/components/ui";
 import { useUIStore } from "~/lib/stores";
 import { useCart, useUpdateCartItem, useRemoveCartItem } from "~/lib/query";
-import { formatCurrency, getImageUrl } from "~/lib/utils";
+import { formatPrice, getImageUrl } from "~/lib/utils";
 import type { CartItem } from "~/lib/types";
 
 export function CartSidebar() {
@@ -126,7 +126,7 @@ export function CartSidebar() {
 
                         <div className="text-right">
                           <p className="font-semibold text-orange-500">
-                            {formatCurrency(parseFloat(item.total_price.amount))}
+                            {formatPrice(item.total_price)}
                           </p>
                         </div>
                       </div>
@@ -153,7 +153,7 @@ export function CartSidebar() {
                   Tạm tính:
                 </span>
                 <span className="text-lg font-semibold">
-                  {formatCurrency(parseFloat(cart.subtotal.amount))}
+                  {formatPrice(cart.subtotal)}
                 </span>
               </div>
               <div className="grid gap-2">

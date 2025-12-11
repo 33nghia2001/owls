@@ -93,8 +93,8 @@ export interface ProductListItem {
   id: string;
   name: string;
   slug: string;
-  price: Money;
-  compare_price: Money | null;
+  price: Money | string | number;
+  compare_price: Money | string | number | null;
   is_on_sale: boolean;
   discount_percentage: number;
   rating: number;
@@ -103,6 +103,8 @@ export interface ProductListItem {
   vendor: VendorSummary;
   category: { id: string; name: string; slug: string } | null;
   primary_image: ProductImage | null;
+  has_variants?: boolean;
+  is_featured?: boolean;
 }
 
 export interface Money {

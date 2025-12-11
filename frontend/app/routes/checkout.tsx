@@ -4,12 +4,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   MapPin, Phone, User, CreditCard, Truck, Package, 
-  AlertCircle, CheckCircle, ChevronRight, Tag
+  AlertCircle, CheckCircle, ChevronRight, Tag, Loader2
 } from "lucide-react";
 import { useCartStore, useAuthStore } from "~/lib/stores";
+import { ordersApi, paymentsApi } from "~/lib/services";
 import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
-import { formatCurrency, cn } from "~/lib/utils";
+import { formatCurrency, cn, parsePrice } from "~/lib/utils";
 import { Button } from "~/components/ui";
+import { getErrorMessage } from "~/lib/types/api-errors";
 import toast from "react-hot-toast";
 
 export function meta() {
@@ -87,17 +89,53 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // TODO: Call orders API to create order
-      console.log("Checkout data:", data);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast.success("Đặt hàng thành công!");
-      navigate("/checkout/success");
-    } catch (error: any) {
-      const message = error.response?.data?.detail || "Đặt hàng thất bại. Vui lòng thử lại.";
+      // Step 1: Create order with shipping address
+      const orderData = {
+        shipping_address: {
+          full_name: data.full_name,
+          phone: data.phone,
+          address_line1: data.address,
+          city: data.city,
+          state: data.district, // district maps to state in backend
+          country: "Vietnam",
+          postal_code: data.ward || "", // ward as postal code
+        },
+        notes: data.note || "",
+        coupon_code: data.coupon_code || undefined,
+      };
+
+      const orderResponse = await ordersApi.createOrder(orderData);
+      const orderId = orderResponse.id;
+
+      // Step 2: Handle payment based on selected method
+      if (data.payment_method === "cod") {
+        // COD: Order already created, redirect to success
+        toast.success("Đặt hàng thành công!");
+        navigate(`/checkout/success?order_id=${orderId}`);
+      } else {
+        // VNPay or Stripe: Create payment and redirect
+        const paymentResponse = await paymentsApi.createPayment({
+          order_id: orderId,
+          method: data.payment_method, // "vnpay" or "stripe"
+        });
+
+        // Redirect to payment gateway
+        if (paymentResponse.payment_url) {
+          // VNPay returns payment_url
+          window.location.href = paymentResponse.payment_url;
+        } else if (paymentResponse.checkout_url) {
+          // Stripe returns checkout_url
+          window.location.href = paymentResponse.checkout_url;
+        } else {
+          // Fallback to success page if no redirect URL
+          toast.success("Đặt hàng thành công!");
+          navigate(`/checkout/success?order_id=${orderId}`);
+        }
+      }
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
       setServerError(message);
+      toast.error(message);
     } finally {
       setIsProcessing(false);
     }
@@ -130,7 +168,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const subtotal = parseFloat(cart.subtotal.amount);
+  const subtotal = parsePrice(cart.subtotal);
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-[#050505] py-8">
@@ -352,7 +390,7 @@ export default function CheckoutPage() {
                         <p className="text-sm text-gray-500">x{item.quantity}</p>
                       </div>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                        {formatCurrency(parseFloat(item.total_price.amount))}
+                        {formatCurrency(parsePrice(item.total_price))}
                       </p>
                     </div>
                   ))}

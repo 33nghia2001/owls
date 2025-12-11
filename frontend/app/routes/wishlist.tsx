@@ -10,7 +10,7 @@ import { wishlistApi } from "~/lib/services";
 import type { ProductListItem } from "~/lib/types";
 import { ProductGrid } from "~/components/product/product-grid";
 import { Button, Badge } from "~/components/ui";
-import { cn, formatPrice } from "~/lib/utils";
+import { cn, formatPrice, parsePrice } from "~/lib/utils";
 import toast from "react-hot-toast";
 
 export function meta() {
@@ -40,11 +40,11 @@ export default function WishlistPage() {
   // Calculate statistics
   const stats = useMemo(() => {
     const totalValue = products.reduce((sum: number, p: ProductListItem) => {
-      const price = parseFloat(p.price?.amount || "0");
+      const price = parsePrice(p.price);
       return sum + price;
     }, 0);
     const avgPrice = products.length > 0 ? totalValue / products.length : 0;
-    const prices = products.map((p: ProductListItem) => parseFloat(p.price?.amount || "0"));
+    const prices = products.map((p: ProductListItem) => parsePrice(p.price));
     const minPrice = products.length > 0 ? Math.min(...prices) : 0;
     const maxPrice = products.length > 0 ? Math.max(...prices) : 0;
     return { totalValue, avgPrice, minPrice, maxPrice };
@@ -69,15 +69,15 @@ export default function WishlistPage() {
     switch (sortBy) {
       case "price-asc":
         filtered.sort((a: ProductListItem, b: ProductListItem) => {
-          const priceA = parseFloat(a.price?.amount || "0");
-          const priceB = parseFloat(b.price?.amount || "0");
+          const priceA = parsePrice(a.price);
+          const priceB = parsePrice(b.price);
           return priceA - priceB;
         });
         break;
       case "price-desc":
         filtered.sort((a: ProductListItem, b: ProductListItem) => {
-          const priceA = parseFloat(a.price?.amount || "0");
-          const priceB = parseFloat(b.price?.amount || "0");
+          const priceA = parsePrice(a.price);
+          const priceB = parsePrice(b.price);
           return priceB - priceA;
         });
         break;

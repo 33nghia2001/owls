@@ -1,8 +1,8 @@
-import { Link } from "react-router";
-import { Heart, ShoppingCart, Star, Eye } from "lucide-react";
+import { Link, useNavigate } from "react-router";
+import { Heart, ShoppingCart, Star, Eye, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ProductListItem } from "~/lib/types";
-import { formatCurrency, getImageUrl, cn } from "~/lib/utils";
+import { formatCurrency, getImageUrl, cn, parsePrice } from "~/lib/utils";
 import { useCartStore, useWishlistStore } from "~/lib/stores";
 import { useState } from "react";
 import { toast } from "~/components/ui/toast";
@@ -14,20 +14,35 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, className, index = 0 }: ProductCardProps) {
+  const navigate = useNavigate();
   const { addToCart } = useCartStore();
   const { isInWishlist, addItem, removeItem } = useWishlistStore();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
   const inWishlist = isInWishlist(product.id);
-  const price = parseFloat(product.price.amount);
-  const comparePrice = product.compare_price
-    ? parseFloat(product.compare_price.amount)
-    : null;
+  
+  // Use parsePrice to safely handle various price formats from backend
+  const price = parsePrice(product.price);
+  const comparePrice = product.compare_price ? parsePrice(product.compare_price) : null;
+  
+  // Check if product has variants (requires selection before adding to cart)
+  const hasVariants = product.has_variants ?? false;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If product has variants, redirect to product detail page
+    if (hasVariants) {
+      navigate(`/products/${product.slug}`);
+      toast.info({
+        title: "Chọn phiên bản",
+        description: "Vui lòng chọn phiên bản sản phẩm trước khi thêm vào giỏ",
+      });
+      return;
+    }
+    
     setIsAddingToCart(true);
     try {
       await addToCart(product.id, 1);
@@ -167,8 +182,17 @@ export function ProductCard({ product, className, index = 0 }: ProductCardProps)
                   whileTap={{ scale: 0.98 }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-medium text-white shadow-lg shadow-orange-500/30 transition-colors hover:bg-orange-600 disabled:opacity-50"
                 >
-                  <ShoppingCart className="h-5 w-5" />
-                  {isAddingToCart ? "Đang thêm..." : "Thêm vào giỏ"}
+                  {hasVariants ? (
+                    <>
+                      <Settings2 className="h-5 w-5" />
+                      Tùy chọn
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="h-5 w-5" />
+                      {isAddingToCart ? "Đang thêm..." : "Thêm vào giỏ"}
+                    </>
+                  )}
                 </motion.button>
               </motion.div>
             )}

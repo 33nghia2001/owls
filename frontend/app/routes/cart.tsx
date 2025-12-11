@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { Trash2, Loader2 } from "lucide-react";
 import { useCart, useUpdateCartItem, useRemoveCartItem } from "~/lib/query";
-import { formatCurrency } from "~/lib/utils";
+import { formatPrice } from "~/lib/utils";
 import type { CartItem } from "~/lib/types";
 
 export function meta() {
@@ -125,9 +125,9 @@ export default function CartPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        {formatCurrency(parseFloat(item.total_price.amount))}
+                        {formatPrice(item.total_price)}
                       </p>
-                      <p className="text-sm text-gray-500">{formatCurrency(parseFloat(item.unit_price.amount))} / sản phẩm</p>
+                      <p className="text-sm text-gray-500">{formatPrice(item.unit_price)} / sản phẩm</p>
                     </div>
                   </div>
                 </div>
@@ -140,12 +140,12 @@ export default function CartPage() {
             <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
               <div className="flex justify-between">
                 <span>Tạm tính</span>
-                <span>{formatCurrency(parseFloat(cart.subtotal.amount))}</span>
+                <span>{formatPrice(cart.subtotal)}</span>
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-gray-100">
               <span>Thành tiền</span>
-              <span>{formatCurrency(parseFloat(cart.subtotal.amount))}</span>
+              <span>{formatPrice(cart.subtotal)}</span>
             </div>
             <button
               onClick={() => navigate("/checkout")}

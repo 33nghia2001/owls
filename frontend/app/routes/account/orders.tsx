@@ -1,7 +1,7 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { ordersApi } from "~/lib/services";
 import type { Order } from "~/lib/types";
-import { formatDate, formatCurrency } from "~/lib/utils";
+import { formatDate, formatPrice } from "~/lib/utils";
 
 export function meta() {
   return [
@@ -64,7 +64,7 @@ export default function OrdersPage() {
                 <td className="px-4 py-3 capitalize text-gray-700 dark:text-gray-200">{order.status}</td>
                 <td className="px-4 py-3 capitalize text-gray-700 dark:text-gray-200">{order.payment_status}</td>
                 <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100">
-                  {formatCurrency(parseFloat(order.total.amount))}
+                  {formatPrice(order.total)}
                 </td>
               </tr>
             ))}

@@ -1,7 +1,7 @@
 import { useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { ordersApi } from "~/lib/services";
 import type { Order } from "~/lib/types";
-import { formatCurrency, formatDate } from "~/lib/utils";
+import { formatPrice, formatDate } from "~/lib/utils";
 
 export function meta({ params }: { params: { id: string } }) {
   return [
@@ -37,9 +37,9 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-gray-900 dark:text-gray-100">
-                    {formatCurrency(parseFloat(item.total_price.amount))}
+                    {formatPrice(item.total_price)}
                   </p>
-                  <p className="text-xs text-gray-500">{formatCurrency(parseFloat(item.unit_price.amount))} / sản phẩm</p>
+                  <p className="text-xs text-gray-500">{formatPrice(item.unit_price)} / sản phẩm</p>
                 </div>
               </div>
             ))}
@@ -59,19 +59,19 @@ export default function OrderDetailPage() {
             </div>
             <div className="flex justify-between">
               <span>Tạm tính</span>
-              <span>{formatCurrency(parseFloat(order.subtotal.amount))}</span>
+              <span>{formatPrice(order.subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span>Phí vận chuyển</span>
-              <span>{formatCurrency(parseFloat(order.shipping_fee.amount))}</span>
+              <span>{formatPrice(order.shipping_fee)}</span>
             </div>
             <div className="flex justify-between">
               <span>Giảm giá</span>
-              <span>-{formatCurrency(parseFloat(order.discount.amount))}</span>
+              <span>-{formatPrice(order.discount)}</span>
             </div>
             <div className="flex justify-between text-lg font-semibold text-gray-900 dark:text-gray-100">
               <span>Tổng</span>
-              <span>{formatCurrency(parseFloat(order.total.amount))}</span>
+              <span>{formatPrice(order.total)}</span>
             </div>
           </div>
         </div>
