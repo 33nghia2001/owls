@@ -2,7 +2,7 @@ import { Form, useNavigate } from "react-router";
 import { useState } from "react";
 import { ArrowLeft, Upload, Loader2, Package, AlertCircle } from "lucide-react";
 import { Link } from "react-router";
-import { sellerProductsApi, inventoryApi, productsApi } from "~/lib/services";
+import { sellerProductsApi, productsApi } from "~/lib/services";
 import { Button } from "~/components/ui";
 import toast from "react-hot-toast";
 
@@ -83,7 +83,8 @@ export default function NewProductPage() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Create product
+      // Create product with inventory data in single atomic request
+      // Backend will automatically create inventory record
       const productFormData = new FormData();
       productFormData.append("name", formData.name);
       productFormData.append("short_description", formData.short_description);
@@ -99,29 +100,19 @@ export default function NewProductPage() {
         productFormData.append("category", formData.category);
       }
       
+      // Add inventory data - backend handles this atomically
+      productFormData.append("initial_stock", formData.quantity || "0");
+      productFormData.append("low_stock_threshold", formData.low_stock_threshold || "10");
+      if (formData.warehouse_location) {
+        productFormData.append("warehouse_location", formData.warehouse_location);
+      }
+      
       // Add images
       images.forEach((img) => {
         productFormData.append("uploaded_images", img);
       });
 
-      const product = await sellerProductsApi.createProduct(productFormData);
-      
-      // Step 2: Create inventory for the product (if quantity > 0)
-      const quantity = parseInt(formData.quantity) || 0;
-      if (quantity > 0) {
-        try {
-          await inventoryApi.createInventory({
-            product: product.id,
-            quantity: quantity,
-            low_stock_threshold: parseInt(formData.low_stock_threshold) || 10,
-            warehouse_location: formData.warehouse_location || undefined,
-          });
-        } catch (inventoryError: any) {
-          console.error("Failed to create inventory:", inventoryError);
-          // Product created but inventory failed - notify user
-          toast.error("Sản phẩm đã tạo nhưng không thể thiết lập kho. Vui lòng cập nhật tồn kho sau.");
-        }
-      }
+      await sellerProductsApi.createProduct(productFormData);
 
       toast.success("Tạo sản phẩm thành công!");
       navigate("/seller/products");
