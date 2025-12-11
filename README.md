@@ -153,17 +153,72 @@ owls/
 │   │   ├── messaging/      # Customer-Vendor chat (WebSocket)
 │   │   └── analytics/      # Statistics & Reports
 │   ├── backend/            # Django settings
-│   │   ├── settings.py
-│   │   ├── urls.py
+│   │   ├── settings.py     # Main configuration
+│   │   ├── urls.py         # URL routing
 │   │   ├── asgi.py         # ASGI config for Channels
+│   │   ├── wsgi.py         # WSGI config for production
 │   │   └── validators.py   # Custom password validators
-│   └── manage.py
+│   ├── requirements.txt    # Python dependencies
+│   └── manage.py           # Django management commands
 ├── frontend/
 │   ├── app/
-│   │   ├── routes/         # React Router pages
-│   │   └── components/     # Reusable components
-│   └── package.json
-└── README.md
+│   │   ├── routes/         # React Router v7 pages (file-based routing)
+│   │   │   ├── home.tsx                    # Landing page
+│   │   │   ├── products/
+│   │   │   │   ├── index.tsx               # Products listing
+│   │   │   │   └── [slug].tsx              # Product detail
+│   │   │   ├── cart.tsx                    # Shopping cart
+│   │   │   ├── checkout.tsx                # Checkout process
+│   │   │   ├── wishlist.tsx                # Wishlist management
+│   │   │   ├── vendors/
+│   │   │   │   ├── index.tsx               # Vendors listing
+│   │   │   │   └── [slug].tsx              # Vendor profile
+│   │   │   ├── account/
+│   │   │   │   ├── profile.tsx             # User profile
+│   │   │   │   ├── orders.tsx              # Order history
+│   │   │   │   └── settings.tsx            # Account settings
+│   │   │   └── auth/
+│   │   │       ├── login.tsx               # Login page
+│   │   │       └── register.tsx            # Registration
+│   │   ├── components/         # Reusable React components
+│   │   │   ├── layout/                     # Layout components
+│   │   │   │   ├── header.tsx
+│   │   │   │   ├── footer.tsx
+│   │   │   │   └── sidebar.tsx
+│   │   │   ├── product/                    # Product-related components
+│   │   │   │   ├── product-card.tsx
+│   │   │   │   ├── product-grid.tsx
+│   │   │   │   └── product-filters.tsx
+│   │   │   ├── cart/                       # Cart components
+│   │   │   └── ui/                         # UI primitives (buttons, inputs, etc.)
+│   │   ├── lib/                # Utilities and configurations
+│   │   │   ├── services/                   # API service layer
+│   │   │   │   ├── api.ts                  # Axios instance
+│   │   │   │   ├── products.ts
+│   │   │   │   ├── auth.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── stores/                     # Zustand state stores
+│   │   │   │   ├── auth.ts                 # Auth state
+│   │   │   │   └── cart.ts                 # Cart state
+│   │   │   ├── types/                      # TypeScript type definitions
+│   │   │   │   └── index.ts
+│   │   │   └── utils/                      # Helper functions
+│   │   │       └── index.ts                # formatPrice, cn, etc.
+│   │   ├── root.tsx            # Root layout component
+│   │   ├── routes.ts           # Route configuration
+│   │   └── app.css             # Global styles
+│   ├── public/                 # Static assets
+│   │   ├── favicon.ico
+│   │   └── images/
+│   ├── .eslintrc.json          # ESLint configuration
+│   ├── tsconfig.json           # TypeScript configuration
+│   ├── vite.config.ts          # Vite build configuration
+│   ├── react-router.config.ts  # React Router v7 config
+│   ├── tailwind.config.js      # Tailwind CSS configuration
+│   └── package.json            # NPM dependencies and scripts
+├── .gitignore
+├── package.json                # Root package.json (workspace)
+└── README.md                   # Project documentation
 ```
 
 ## � Screenshots
