@@ -1,121 +1,77 @@
 import { Form } from "react-router";
+import { Store, Save, MapPin } from "lucide-react";
+import { Button, Input } from "~/components/ui";
 
 export function meta() {
   return [
-    { title: "Cài đặt - Seller Dashboard" },
-    { name: "description", content: "Cài đặt cửa hàng" },
+    { title: "Cài đặt cửa hàng - Kênh người bán" },
   ];
 }
 
 export default function SellerSettingsPage() {
+  // Mock data - replace with actual loader data later
+  const shop = {
+    name: "OWLS Official Store",
+    description: "Cửa hàng chính hãng chuyên cung cấp các sản phẩm thời trang.",
+    address: "123 Nguyễn Văn Linh, Quận 7, TP.HCM",
+    phone: "0901234567"
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">Cài đặt</h1>
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <Store className="h-6 w-6 text-orange-500" />
+          Cài đặt cửa hàng
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Quản lý thông tin hiển thị của shop bạn</p>
+      </div>
 
-      <div className="space-y-6">
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">Thông tin cửa hàng</h2>
+      <div className="grid gap-8">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <h2 className="text-lg font-semibold mb-6 border-b border-gray-100 pb-4 dark:border-gray-800">Thông tin cơ bản</h2>
           
-          <Form className="space-y-4">
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Tên cửa hàng
-              <input
-                name="shop_name"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Mô tả
-              <textarea
-                name="description"
-                rows={4}
-                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Email liên hệ
-              <input
-                name="business_email"
-                type="email"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Địa chỉ
-              <input
-                name="address"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Tỉnh/Thành phố
-                <input
-                  name="city"
-                  className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-                />
-              </label>
-
-              <label className="block text-sm text-gray-700 dark:text-gray-300">
-                Quốc gia
-                <input
-                  name="country"
-                  className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-                />
-              </label>
+          <form className="space-y-6">
+            <div className="flex items-center gap-6">
+              <div className="h-24 w-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400">
+                Logo
+              </div>
+              <Button variant="outline" size="sm">Thay đổi logo</Button>
             </div>
 
-            <button
-              type="submit"
-              className="rounded-lg bg-orange-500 px-6 py-3 font-medium text-white transition hover:bg-orange-600"
-            >
-              Lưu thay đổi
-            </button>
-          </Form>
-        </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tên cửa hàng</label>
+                <Input defaultValue={shop.name} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Số điện thoại liên hệ</label>
+                <Input defaultValue={shop.phone} />
+              </div>
+            </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">Thông tin thanh toán</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Thông tin tài khoản ngân hàng để nhận thanh toán từ đơn hàng.
-          </p>
-          
-          <Form className="mt-4 space-y-4">
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Ngân hàng
-              <input
-                name="bank_name"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Giới thiệu cửa hàng</label>
+              <textarea 
+                className="w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-800 min-h-[100px]"
+                defaultValue={shop.description}
               />
-            </label>
+            </div>
 
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Số tài khoản
-              <input
-                name="account_number"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Địa chỉ kho hàng</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input className="pl-9" defaultValue={shop.address} />
+              </div>
+            </div>
 
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Tên chủ tài khoản
-              <input
-                name="account_holder"
-                className="mt-1 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-900"
-              />
-            </label>
-
-            <button
-              type="submit"
-              className="rounded-lg bg-orange-500 px-6 py-3 font-medium text-white transition hover:bg-orange-600"
-            >
-              Cập nhật
-            </button>
-          </Form>
+            <div className="pt-4 flex justify-end">
+              <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                <Save className="mr-2 h-4 w-4" /> Lưu thay đổi
+              </Button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
