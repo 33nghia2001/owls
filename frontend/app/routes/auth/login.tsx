@@ -1,9 +1,13 @@
-import { Link, Form, useActionData, useNavigation, type ActionFunctionArgs } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { Button, Input } from "~/components/ui";
-import { authApi } from "~/lib/services";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import { Button } from "~/components/ui";
 import { useAuthStore } from "~/lib/stores";
+import { loginSchema, type LoginFormData } from "~/lib/validations";
+import { cn } from "~/lib/utils";
+import toast from "react-hot-toast";
 
 export function meta() {
   return [
@@ -12,52 +16,47 @@ export function meta() {
   ];
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-
-  if (!email || !password) {
-    return { error: "Vui lòng nhập đầy đủ thông tin" };
-  }
-
-  try {
-    await authApi.login(email, password);
-    return { success: true };
-  } catch (error: any) {
-    const message = error.response?.data?.detail || "Đăng nhập thất bại";
-    return { error: message };
-  }
-}
-
-export async function clientAction({ request }: { request: Request }) {
-  const formData = await request.formData();
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-
-  if (!email || !password) {
-    return { error: "Vui lòng nhập đầy đủ thông tin" };
-  }
-
-  try {
-    const { useAuthStore } = await import("~/lib/stores");
-    await useAuthStore.getState().login(email, password);
-    
-    // Redirect to home or previous page
-    window.location.href = "/";
-    return { success: true };
-  } catch (error: any) {
-    const message = error.response?.data?.detail || "Email hoặc mật khẩu không đúng";
-    return { error: message };
-  }
-}
-
 export default function LoginPage() {
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
+  const navigate = useNavigate();
+  const { login, isLoading } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
-  
-  const isSubmitting = navigation.state === "submitting";
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      remember: false,
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setServerError(null);
+    
+    try {
+      await login(data.email, data.password);
+      toast.success("Đăng nhập thành công!");
+      navigate("/");
+    } catch (error: any) {
+      const message = error.response?.data?.detail || "Email hoặc mật khẩu không đúng";
+      setServerError(message);
+    }
+  };
+
+  const inputClasses = (hasError: boolean) =>
+    cn(
+      "mt-1 h-11 w-full rounded-lg border px-3 pl-10 text-sm transition-colors",
+      "focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none",
+      "dark:bg-gray-900 dark:text-gray-100",
+      hasError
+        ? "border-red-500 dark:border-red-500"
+        : "border-gray-200 dark:border-gray-800"
+    );
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-4 py-12">
@@ -76,51 +75,73 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Error message */}
-          {actionData?.error && (
-            <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-              {actionData.error}
+          {/* Server Error */}
+          {serverError && (
+            <div className="mb-6 flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <span>{serverError}</span>
             </div>
           )}
 
           {/* Form */}
-          <Form method="post" className="space-y-5">
-            <Input
-              label="Email"
-              name="email"
-              type="email"
-              placeholder="email@example.com"
-              required
-              autoComplete="email"
-            />
-
-            <div className="relative">
-              <Input
-                label="Mật khẩu"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-[38px] text-gray-500 hover:text-gray-700"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-5 w-5" />
-                ) : (
-                  <Eye className="h-5 w-5" />
-                )}
-              </button>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Email Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  {...register("email")}
+                  type="email"
+                  placeholder="email@example.com"
+                  autoComplete="email"
+                  className={inputClasses(!!errors.email)}
+                />
+              </div>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>
+              )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
+            {/* Password Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Mật khẩu
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                 <input
+                  {...register("password")}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className={inputClasses(!!errors.password)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
+              )}
+            </div>
+
+            {/* Remember & Forgot Password */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  {...register("remember")}
                   type="checkbox"
-                  name="remember"
                   className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -128,17 +149,22 @@ export default function LoginPage() {
                 </span>
               </label>
               <Link
-                to="/forgot-password"
+                to="/auth/forgot-password"
                 className="text-sm font-medium text-orange-500 hover:text-orange-600"
               >
                 Quên mật khẩu?
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" isLoading={isSubmitting}>
+            {/* Submit Button */}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              isLoading={isSubmitting || isLoading}
+            >
               Đăng nhập
             </Button>
-          </Form>
+          </form>
 
           {/* Divider */}
           <div className="my-6 flex items-center">
@@ -147,11 +173,11 @@ export default function LoginPage() {
             <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
           </div>
 
-          {/* Social login */}
-          <div className="grid gap-3">
+          {/* Social Login */}
+          <div className="space-y-3">
             <button
               type="button"
-              className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path
@@ -173,13 +199,23 @@ export default function LoginPage() {
               </svg>
               Đăng nhập với Google
             </button>
+
+            <button
+              type="button"
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <svg className="h-5 w-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+              </svg>
+              Đăng nhập với Facebook
+            </button>
           </div>
 
-          {/* Register link */}
-          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+          {/* Register Link */}
+          <p className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
             Chưa có tài khoản?{" "}
             <Link
-              to="/register"
+              to="/auth/register"
               className="font-medium text-orange-500 hover:text-orange-600"
             >
               Đăng ký ngay
