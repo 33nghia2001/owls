@@ -1,30 +1,76 @@
-﻿# Owls - Nền tảng quản lý thời gian
+﻿# OWLS Marketplace
 
-## 1. Giới Thiệu
-Owls là nền tảng thông minh giúp mỗi cá nhân thiết kế và quản lý lịch trình một cách khoa học, cân bằng giữa sức khỏe, công việc và học tập. Trong nhịp sống hiện đại đầy bận rộn, nhiều người không có đủ thời gian để sắp xếp lại kế hoạch của mình, dẫn đến việc lãng phí những khoảng thời gian quý giá. Có lúc bạn bị cuốn vào guồng quay công việc, nhưng cũng có lúc lại dư thừa thời gian mà chưa tận dụng hiệu quả.
+**OWLS** là một nền tảng thương mại điện tử đa người bán (Multi-vendor Marketplace) hiện đại, được xây dựng với kiến trúc Headless: Backend mạnh mẽ bằng **Django** và Frontend tối ưu SEO bằng **Remix**.
 
-Sứ mệnh của Owls là đồng hành cùng bạn trong việc xây dựng kế hoạch cá nhân hợp lý, dựa trên triết lý: “Sức khỏe tinh thần của bạn là sức mạnh của chúng tôi” Chúng tôi cam kết mang đến giải pháp quản lý thời gian tối ưu, giúp bạn sống cân bằng, hiệu quả và hạnh phúc hơn mỗi ngày.
+![Project Status](https://img.shields.io/badge/Status-In%20Development-orange)
+![Backend](https://img.shields.io/badge/Backend-Django%20Rest%20Framework-green)
+![Frontend](https://img.shields.io/badge/Frontend-Remix%20Run-blue)
 
-## 2. Chức Năng
-Chúng tôi hân hạnh giới thiệu cho các bạn về các chức năng chính của nền tảng quản lý thời gian của chúng tôi.
+## Tính năng chính
 
-### Chức năng cốt lõi:
-- **Quản lý lịch trình cá nhân**: tạo, chỉnh sửa, xóa các sự kiện, công việc, học tập.
-- **Timeline trực quan**: hiển thị lịch trình theo ngày/tuần/tháng dưới dạng timeline hoặc calendar.
-- **Nhắc nhở thông minh**: thông báo qua app/email khi đến hạn công việc hoặc sự kiện.
-- **Phân loại hoạt động**: gắn nhãn (work, study, health, leisure) để dễ theo dõi cân bằng.
-- **Đồng bộ đa nền tảng**: kết nối với Google Calendar, Outlook, hoặc thiết bị di động.
+* **Multi-vendor System:** Cho phép nhiều người bán đăng ký, mở shop và quản lý kho hàng riêng.
+* **Order Splitting:** Tự động tách đơn hàng lớn thành các đơn nhỏ theo từng người bán.
+* **Product Variants:** Hỗ trợ sản phẩm nhiều biến thể (Màu sắc, Kích thước, SKU).
+* **Smart Payments:** Tích hợp Stripe (Quốc tế) và VNPay (Việt Nam).
+* **Real-time:** Thông báo đơn hàng và Chat thời gian thực.
+* **Optimization:** Sử dụng Redis Cache và Celery cho tác vụ nền.
 
-### Chức năng nâng cao:
-- **Phân tích thói quen thời gian**: thống kê thời gian dành cho từng loại hoạt động, đưa ra báo cáo.
-- **Đề xuất lịch trình tối ưu**: AI gợi ý cách sắp xếp công việc để cân bằng giữa sức khỏe và hiệu suất.
-- **Theo dõi sức khỏe tinh thần**: tích hợp mini check-in (mood tracker) để người dùng tự đánh giá trạng thái.
-- **Gamification**: hệ thống điểm thưởng, huy hiệu khi duy trì lịch trình khoa học.
-- **Chia sẻ & cộng tác**: cho phép chia sẻ timeline với bạn bè, đồng nghiệp hoặc nhóm học tập.
+## Công nghệ sử dụng (Tech Stack)
 
-### Chức năng mở rộng:
-- **Trợ lý ảo quản lý thời gian**: chatbot/AI hỗ trợ lên kế hoạch nhanh dựa trên mục tiêu người dùng.
-- **Tích hợp IoT/thiết bị đeo**: đồng bộ dữ liệu từ smartwatch (giấc ngủ, vận động) để đề xuất lịch trình hợp lý.
-- **Chế độ tập trung (Focus Mode)**: chặn thông báo gây xao nhãng trong khoảng thời gian làm việc.
-- **Phân tích hiệu suất dài hạn**: báo cáo theo tuần/tháng/quý để người dùng thấy tiến bộ.
-- **Marketplace mini-apps**: cho phép tích hợp ứng dụng bên thứ ba (ví dụ: app học ngoại ngữ, thể dục).
+### Backend
+* **Language:** Python 3.10+
+* **Framework:** Django 5.x, Django REST Framework (DRF)
+* **Database:** PostgreSQL (Production) / SQLite (Dev)
+* **Authentication:** JWT (JSON Web Tokens)
+* **Async Tasks:** Celery + Redis
+* **Storage:** AWS S3 (Media files)
+* **Documentation:** Swagger / Redoc (drf-spectacular)
+
+### Frontend (Dự kiến)
+* **Framework:** Remix (React)
+* **Styling:** TailwindCSS
+* **State Management:** React Context / Zustand
+
+---
+
+## Hướng dẫn cài đặt (Development)
+
+Làm theo các bước sau để chạy dự án trên máy cục bộ (Localhost).
+
+### 1. Yêu cầu tiên quyết
+* Python 3.10 trở lên
+* Node.js 18 trở lên
+* Redis (để chạy Celery)
+* Git
+
+### 2. Cài đặt Backend
+
+```bash
+# 1. Clone dự án
+git clone [https://github.com/33nghia2001/owls.git](https://github.com/33nghia2001/owls.git)
+cd owls
+
+# 2. Tạo môi trường ảo (Virtual Environment)
+python -m venv .venv
+
+# 3. Kích hoạt môi trường ảo
+# Windows:
+.venv\Scripts\activate
+# MacOS/Linux:
+source .venv/bin/activate
+
+# 4. Cài đặt thư viện
+pip install -r backend/requirements.txt
+
+# 5. Cấu hình biến môi trường
+# Tạo file .env ngang hàng với file manage.py và điền thông tin (xem mẫu bên dưới)
+
+# 6. Chạy Migration (Tạo database)
+cd backend
+python manage.py migrate
+
+# 7. Tạo Superuser (Admin)
+python manage.py createsuperuser
+
+# 8. Khởi chạy Server
+python manage.py runserver
