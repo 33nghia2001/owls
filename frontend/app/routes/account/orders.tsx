@@ -11,12 +11,34 @@ export function meta() {
 }
 
 export async function loader({}: LoaderFunctionArgs) {
-  const data = await ordersApi.getOrders();
-  return { orders: data.results || [] };
+  try {
+    const data = await ordersApi.getOrders();
+    return { orders: data.results || [] };
+  } catch (error: any) {
+    // If 401, user is not authenticated - return empty orders
+    if (error.response?.status === 401) {
+      return { orders: [] };
+    }
+    throw error;
+  }
 }
 
 export default function OrdersPage() {
   const { orders } = useLoaderData<typeof loader>();
+
+  if (orders.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="mb-4 text-3xl font-bold text-gray-900 dark:text-gray-100">Đơn hàng</h1>
+        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center dark:border-gray-800 dark:bg-gray-900">
+          <p className="text-gray-600 dark:text-gray-400">Bạn chưa có đơn hàng nào.</p>
+          <Link to="/products" className="mt-4 inline-block rounded-lg bg-orange-500 px-6 py-2 text-white hover:bg-orange-600">
+            Mua sắm ngay
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -48,9 +70,6 @@ export default function OrdersPage() {
             ))}
           </tbody>
         </table>
-        {orders.length === 0 && (
-          <div className="p-6 text-center text-gray-600 dark:text-gray-300">Chưa có đơn hàng nào.</div>
-        )}
       </div>
     </div>
   );

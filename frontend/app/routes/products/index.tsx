@@ -16,12 +16,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const search = url.searchParams.get("q") || "";
   const sort = url.searchParams.get("sort") || "-created_at";
   const category = url.searchParams.get("category") || undefined;
-  const params = { page, search, ordering: sort, category };
+  
+  // Build params - use category_slug for backend
+  const params: any = { page, ordering: sort };
+  if (search) params.search = search;
+  if (category) params.category_slug = category;
 
   const products = await productsApi.getProducts(params);
   const categoriesData = await productsApi.getCategories();
 
-  return { products, categories: categoriesData.results || [], params };
+  return { products, categories: categoriesData.results || [], params: { search, category, ordering: sort } };
 }
 
 export default function ProductsPage() {

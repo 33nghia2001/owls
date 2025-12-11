@@ -81,7 +81,9 @@ export const productsApi = {
     page?: number;
     search?: string;
     category?: string;
+    category_slug?: string;
     brand?: string;
+    brand_slug?: string;
     min_price?: number;
     max_price?: number;
     ordering?: string;
