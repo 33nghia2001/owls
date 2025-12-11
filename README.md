@@ -1,76 +1,180 @@
 ﻿# OWLS Marketplace
 
-**OWLS** là một nền tảng thương mại điện tử đa người bán (Multi-vendor Marketplace) hiện đại, được xây dựng với kiến trúc Headless: Backend mạnh mẽ bằng **Django** và Frontend tối ưu SEO bằng **Remix**.
+**OWLS** là một nền tảng thương mại điện tử đa người bán (Multi-vendor Marketplace) hiện đại, được xây dựng với kiến trúc Headless: Backend mạnh mẽ bằng **Django** và Frontend tối ưu SEO bằng **React Router v7**.
 
 ![Project Status](https://img.shields.io/badge/Status-In%20Development-orange)
 ![Backend](https://img.shields.io/badge/Backend-Django%20Rest%20Framework-green)
-![Frontend](https://img.shields.io/badge/Frontend-Remix%20Run-blue)
+![Frontend](https://img.shields.io/badge/Frontend-React%20Router%20v7-blue)
 
-## Tính năng chính
+## 🦉 Tính năng chính
 
-* **Multi-vendor System:** Cho phép nhiều người bán đăng ký, mở shop và quản lý kho hàng riêng.
-* **Order Splitting:** Tự động tách đơn hàng lớn thành các đơn nhỏ theo từng người bán.
-* **Product Variants:** Hỗ trợ sản phẩm nhiều biến thể (Màu sắc, Kích thước, SKU).
-* **Smart Payments:** Tích hợp Stripe (Quốc tế) và VNPay (Việt Nam).
-* **Real-time:** Thông báo đơn hàng và Chat thời gian thực.
-* **Optimization:** Sử dụng Redis Cache và Celery cho tác vụ nền.
+### Cho Khách hàng
+- 🛒 **Giỏ hàng thông minh** - Hỗ trợ cả guest và user đăng nhập
+- 💳 **Thanh toán đa dạng** - Stripe (Quốc tế), VNPay (Việt Nam), COD
+- 📦 **Theo dõi đơn hàng** - Real-time tracking shipment
+- ⭐ **Đánh giá sản phẩm** - Review với hình ảnh
+- 💬 **Chat với Shop** - Nhắn tin trực tiếp với người bán
+- ❤️ **Wishlist** - Lưu sản phẩm yêu thích
+- 🔔 **Thông báo** - Push notification cho đơn hàng
 
-## Công nghệ sử dụng (Tech Stack)
+### Cho Người bán (Vendor)
+- 🏪 **Quản lý Shop** - Dashboard riêng cho từng vendor
+- 📊 **Analytics** - Thống kê doanh thu, đơn hàng, sản phẩm bán chạy
+- 📦 **Quản lý kho** - Inventory với cảnh báo hết hàng
+- 🎫 **Mã giảm giá** - Tạo coupon cho shop
+- 💰 **Thanh toán** - Quản lý payout và bank account
+
+### Cho Admin
+- 👥 **Quản lý Users** - Customers, Vendors, Staff
+- ✅ **Duyệt Vendor** - Phê duyệt shop mới
+- 📈 **Platform Analytics** - Thống kê toàn hệ thống
+- 🏷️ **Quản lý Categories** - Danh mục sản phẩm (MPTT tree)
+
+## 🛠️ Tech Stack
 
 ### Backend
-* **Language:** Python 3.10+
-* **Framework:** Django 5.x, Django REST Framework (DRF)
-* **Database:** PostgreSQL (Production) / SQLite (Dev)
-* **Authentication:** JWT (JSON Web Tokens)
-* **Async Tasks:** Celery + Redis
-* **Storage:** AWS S3 (Media files)
-* **Documentation:** Swagger / Redoc (drf-spectacular)
+| Technology | Purpose |
+|------------|---------|
+| Python 3.12 | Language |
+| Django 5.x | Web Framework |
+| Django REST Framework | API |
+| PostgreSQL | Database (Aiven Cloud) |
+| Redis | Cache & Celery Broker |
+| Celery | Background Tasks |
+| JWT | Authentication |
+| Stripe & VNPay | Payment Gateway |
+| drf-spectacular | API Documentation |
 
-### Frontend (Dự kiến)
-* **Framework:** Remix (React)
-* **Styling:** TailwindCSS
-* **State Management:** React Context / Zustand
+### Frontend
+| Technology | Purpose |
+|------------|---------|
+| React Router v7 | Framework |
+| TypeScript | Language |
+| TailwindCSS | Styling |
+| Vite | Build Tool |
 
----
+## 📁 Project Structure
 
-## Hướng dẫn cài đặt (Development)
+```
+owls/
+├── backend/
+│   ├── apps/
+│   │   ├── users/          # Authentication & User management
+│   │   ├── vendors/        # Vendor/Shop management
+│   │   ├── products/       # Products, Categories, Variants
+│   │   ├── cart/           # Shopping cart
+│   │   ├── orders/         # Order processing
+│   │   ├── payments/       # Stripe & VNPay integration
+│   │   ├── reviews/        # Product & Vendor reviews
+│   │   ├── coupons/        # Discount codes
+│   │   ├── wishlist/       # User wishlists
+│   │   ├── shipping/       # Shipping methods & tracking
+│   │   ├── inventory/      # Stock management
+│   │   ├── notifications/  # Push notifications
+│   │   ├── messaging/      # Customer-Vendor chat
+│   │   └── analytics/      # Statistics & Reports
+│   ├── backend/            # Django settings
+│   └── manage.py
+├── frontend/
+│   ├── app/
+│   │   ├── routes/         # React Router pages
+│   │   └── components/     # Reusable components
+│   └── package.json
+└── README.md
+```
 
-Làm theo các bước sau để chạy dự án trên máy cục bộ (Localhost).
+## 🚀 Getting Started
 
-### 1. Yêu cầu tiên quyết
-* Python 3.10 trở lên
-* Node.js 18 trở lên
-* Redis (để chạy Celery)
-* Git
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL (hoặc sử dụng cloud như Aiven)
+- Redis
 
-### 2. Cài đặt Backend
+### Backend Setup
 
 ```bash
-# 1. Clone dự án
-git clone [https://github.com/33nghia2001/owls.git](https://github.com/33nghia2001/owls.git)
+# Clone repository
+git clone https://github.com/33nghia2001/owls.git
 cd owls
 
-# 2. Tạo môi trường ảo (Virtual Environment)
+# Create virtual environment
 python -m venv .venv
 
-# 3. Kích hoạt môi trường ảo
-# Windows:
+# Activate (Windows)
 .venv\Scripts\activate
-# MacOS/Linux:
+
+# Activate (MacOS/Linux)
 source .venv/bin/activate
 
-# 4. Cài đặt thư viện
+# Install dependencies
 pip install -r backend/requirements.txt
 
-# 5. Cấu hình biến môi trường
-# Tạo file .env ngang hàng với file manage.py và điền thông tin (xem mẫu bên dưới)
+# Setup environment variables
+cp backend/.env.example backend/.env
+# Edit .env with your credentials
 
-# 6. Chạy Migration (Tạo database)
+# Run migrations
 cd backend
 python manage.py migrate
 
-# 7. Tạo Superuser (Admin)
+# Create superuser
 python manage.py createsuperuser
 
-# 8. Khởi chạy Server
+# Run server
 python manage.py runserver
+```
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+```
+
+## 📚 API Documentation
+
+Sau khi chạy backend server, truy cập:
+
+- **Swagger UI**: http://localhost:8000/api/docs/
+- **ReDoc**: http://localhost:8000/api/redoc/
+- **Admin Panel**: http://localhost:8000/admin/
+
+## 🔑 Environment Variables
+
+Tạo file `.env` trong thư mục `backend/`:
+
+```env
+# Django
+SECRET_KEY=your-secret-key
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Database
+DATABASE_URL=postgres://user:password@host:port/dbname
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+
+# VNPay
+VNPAY_TMN_CODE=your-tmn-code
+VNPAY_HASH_SECRET=your-hash-secret
+```
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 👤 Author
+
+**Nghia Hoang**
+- GitHub: [@33nghia2001](https://github.com/33nghia2001)
