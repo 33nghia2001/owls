@@ -199,12 +199,15 @@ export interface ShippingAddress {
   id: string;
   full_name: string;
   phone: string;
-  address_line1: string;
-  address_line2: string;
-  city: string;
-  state: string;
-  country: string;
-  postal_code: string;
+  // Backend historically uses `street_address`, newer frontend shape may use `address_line1`/`address_line2`.
+  // Keep both (and make optional) to support both shapes during a migration.
+  street_address?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
   is_default: boolean;
 }
 
