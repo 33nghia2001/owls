@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
             <p className="mb-6 text-sm text-gray-500">
               Không nhận được email? Kiểm tra thư mục spam, hoặc đảm bảo bạn đã nhập đúng email đăng ký.
             </p>
-            <Link to="/login">
+            <Link to="/auth/login">
               <Button variant="outline" className="w-full">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Quay lại đăng nhập
@@ -107,7 +107,7 @@ export default function ForgotPasswordPage() {
           {/* Back to login */}
           <div className="mt-6 text-center">
             <Link
-              to="/login"
+              to="/auth/login"
               className="inline-flex items-center text-sm text-gray-600 hover:text-orange-500 dark:text-gray-400"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />

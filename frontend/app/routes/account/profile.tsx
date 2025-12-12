@@ -77,7 +77,7 @@ export default function ProfilePage() {
             </p>
           </div>
           <Button 
-            onClick={() => navigate("/login")} 
+            onClick={() => navigate("/auth/login")} 
             size="lg"
             className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-600 font-bold text-white shadow-lg shadow-orange-500/20 hover:scale-105"
           >

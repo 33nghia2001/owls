@@ -3,10 +3,17 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 export default [
   index("routes/home.tsx"),
   
-  // Auth routes
-  route("login", "routes/auth/login.tsx"),
-  route("register", "routes/auth/register.tsx"),
-  route("forgot-password", "routes/auth/forgot-password.tsx"),
+  // Auth routes - use /auth prefix for consistency
+  route("auth/login", "routes/auth/login.tsx"),
+  route("auth/register", "routes/auth/register.tsx"),
+  route("auth/forgot-password", "routes/auth/forgot-password.tsx"),
+  
+  // Redirect old auth routes for backward compatibility
+  route("login", "routes/auth/login-redirect.tsx"),
+  route("register", "routes/auth/register-redirect.tsx"),
+  
+  // Deals page
+  route("deals", "routes/deals.tsx"),
   
   // Product routes
   route("products", "routes/products/index.tsx"),

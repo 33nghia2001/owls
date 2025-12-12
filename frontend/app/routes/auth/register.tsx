@@ -337,7 +337,7 @@ export default function RegisterPage() {
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             Đã có tài khoản?{" "}
             <Link
-              to="/login"
+              to="/auth/login"
               className="font-medium text-orange-500 hover:text-orange-600"
             >
               Đăng nhập

@@ -120,7 +120,7 @@ export default function SettingsPage() {
   }
 
   if (!user) {
-    navigate("/login");
+    navigate("/auth/login");
     return null;
   }
 
