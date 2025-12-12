@@ -239,7 +239,8 @@ export interface OrderItem {
   total_price: Money;
   status: string;
   // UI Helpers
-  primary_image?: string; 
+  primary_image?: string;
+  product_image?: string | null; // From VendorOrderItemSerializer
 }
 
 export interface OrderStatusHistory {
@@ -265,20 +266,26 @@ export interface Order {
   // --- Thông tin giao hàng (Khớp Backend Order Model) ---
   shipping_name: string;
   shipping_phone: string;
-  shipping_address: string;
-  shipping_city: string;      // Tỉnh/Thành phố
-  shipping_state: string;     // Phường/Xã/Quận
+  shipping_address: string;      // Số nhà, tên đường
+  shipping_province: string;     // Tỉnh / Thành phố
+  shipping_ward: string;         // Phường / Xã
   shipping_country: string;
   shipping_postal_code: string;
+  // Backward compatibility (optional)
+  shipping_city?: string;
+  shipping_state?: string;
   
   // --- Thông tin thanh toán (Billing) ---
   billing_name?: string;
   billing_phone?: string;
   billing_address?: string;
-  billing_city?: string;
-  billing_state?: string;
+  billing_province?: string;
+  billing_ward?: string;
   billing_country?: string;
   billing_postal_code?: string;
+  // Backward compatibility
+  billing_city?: string;
+  billing_state?: string;
   
   customer_note?: string;
   coupon?: string | null; // Coupon code or ID
@@ -292,13 +299,13 @@ export interface Order {
   delivered_at?: string;
 }
 
-// Interface dùng cho Payload gửi lên API
+// Interface dùng cho Payload gửi lên API (khớp với CreateOrderSerializer backend)
 export interface CreateOrderPayload {
   shipping_name: string;
   shipping_phone: string;
-  shipping_address: string;
-  shipping_city: string;    // Khớp OrderSerializer
-  shipping_state: string;   // Khớp OrderSerializer
+  shipping_address: string;      // Số nhà, tên đường
+  shipping_province: string;     // Tỉnh / Thành phố
+  shipping_ward: string;         // Phường / Xã
   shipping_country?: string;
   shipping_postal_code?: string;
   
@@ -311,14 +318,10 @@ export interface CreateOrderPayload {
   billing_name?: string;
   billing_phone?: string;
   billing_address?: string;
-  billing_city?: string;
-  billing_state?: string;
+  billing_province?: string;
+  billing_ward?: string;
   billing_country?: string;
   billing_postal_code?: string;
-  
-  // Frontend Helpers (mapped before sending)
-  shipping_province?: string;
-  shipping_ward?: string;
 }
 
 // ==========================================

@@ -18,7 +18,7 @@ import { useAuthStore, useWishlistStore } from "~/lib/stores";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
 import { queryClient } from "~/lib/query";
-import { createApi } from "~/lib/api";
+import { createApi, getGuestCartIdFromServerRequest } from "~/lib/api";
 import type { User } from "~/lib/types";
 
 export const links = () => [
@@ -46,7 +46,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // Not logged in or token expired - that's OK
   }
   
-  return { user };
+  // Also get guestCartId from cookie for SSR consistency
+  const guestCartId = getGuestCartIdFromServerRequest(request);
+  
+  return { user, guestCartId };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
