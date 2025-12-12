@@ -4,7 +4,9 @@ import { Star, ShoppingCart, Heart, Truck, Shield } from "lucide-react";
 import { productsApi } from "~/lib/services";
 import type { Product, ProductVariant } from "~/lib/types";
 import { formatCurrency } from "~/lib/utils";
-import { useCartStore, useWishlistStore } from "~/lib/stores";
+import { useWishlistStore } from "~/lib/stores";
+import { useAddToCart } from "~/lib/query"; // Sử dụng Hook từ React Query
+import toast from "react-hot-toast";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
   const product = data?.product;
@@ -94,7 +96,10 @@ export async function loader({ params }: LoaderFunctionArgs) {
 export default function ProductDetailPage() {
   const { product } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const addToCart = useCartStore((s) => s.addToCart);
+  
+  // SỬA ĐỔI: Dùng Hook thay vì Store
+  const addToCartMutation = useAddToCart();
+  
   const addWishlist = useWishlistStore((s) => s.addItem);
   const removeWishlist = useWishlistStore((s) => s.removeItem);
   const isInWishlist = useWishlistStore((s) => s.isInWishlist);
@@ -108,9 +113,20 @@ export default function ProductDetailPage() {
   const price = selectedVariant?.price || product.price;
   const compare = selectedVariant?.compare_price || product.compare_price;
 
-  const handleAddToCart = async () => {
-    await addToCart(product.id, quantity, selectedVariant?.id);
-    navigate("/cart");
+  const handleAddToCart = () => {
+    addToCartMutation.mutate({
+      productId: product.id,
+      quantity,
+      variantId: selectedVariant?.id
+    }, {
+      onSuccess: () => {
+        toast.success("Đã thêm vào giỏ hàng");
+        navigate("/cart");
+      },
+      onError: () => {
+        toast.error("Có lỗi xảy ra khi thêm vào giỏ");
+      }
+    });
   };
 
   return (
@@ -126,7 +142,7 @@ export default function ProductDetailPage() {
           </div>
           {product.images?.length > 1 && (
             <div className="mt-4 grid grid-cols-4 gap-2">
-              {product.images.slice(0, 4).map((img: Product["images"][number]) => (
+              {product.images.slice(0, 4).map((img: any) => (
                 <img
                   key={img.id}
                   src={img.image}
@@ -202,19 +218,23 @@ export default function ProductDetailPage() {
                 +
               </button>
             </div>
+            
             <button
               onClick={handleAddToCart}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-white transition hover:bg-orange-600"
+              disabled={addToCartMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-white transition hover:bg-orange-600 disabled:opacity-70"
             >
-              <ShoppingCart className="h-5 w-5" /> Thêm vào giỏ
+              <ShoppingCart className="h-5 w-5" /> 
+              {addToCartMutation.isPending ? "Đang xử lý..." : "Thêm vào giỏ"}
             </button>
+            
             <button
               onClick={() => (inWishlist ? removeWishlist(product.id) : addWishlist(product.id))}
               className={`rounded-lg border px-4 py-3 transition ${
                 inWishlist ? "border-red-500 bg-red-50 text-red-500" : "border-gray-200 text-gray-700 hover:border-orange-500"
               }`}
             >
-              <Heart className="h-5 w-5" />
+              <Heart className="h-5 w-5" fill={inWishlist ? "currentColor" : "none"} />
             </button>
           </div>
 
