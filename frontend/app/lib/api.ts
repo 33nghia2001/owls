@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import Cookies from "js-cookie";
 import type { AuthTokens, ApiError } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -11,55 +12,52 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-// Token management
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+// --- Token Management (Cookie-based) ---
+const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
 
 export function setTokens(tokens: AuthTokens | null) {
   if (tokens) {
-    accessToken = tokens.access;
-    refreshToken = tokens.refresh;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("accessToken", tokens.access);
-      localStorage.setItem("refreshToken", tokens.refresh);
-    }
+    // Lưu token vào cookie (Client side)
+    // Secure: true nếu chạy HTTPS, SameSite: Strict để chống CSRF
+    Cookies.set(ACCESS_TOKEN_KEY, tokens.access, { secure: window.location.protocol === 'https:', sameSite: 'Strict' });
+    Cookies.set(REFRESH_TOKEN_KEY, tokens.refresh, { secure: window.location.protocol === 'https:', sameSite: 'Strict' });
   } else {
-    accessToken = null;
-    refreshToken = null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-    }
+    Cookies.remove(ACCESS_TOKEN_KEY);
+    Cookies.remove(REFRESH_TOKEN_KEY);
   }
 }
 
 export function getTokens(): AuthTokens | null {
   if (typeof window === "undefined") return null;
   
-  if (!accessToken) {
-    accessToken = localStorage.getItem("accessToken");
-    refreshToken = localStorage.getItem("refreshToken");
-  }
+  const access = Cookies.get(ACCESS_TOKEN_KEY);
+  const refresh = Cookies.get(REFRESH_TOKEN_KEY);
   
-  if (accessToken && refreshToken) {
-    return { access: accessToken, refresh: refreshToken };
+  if (access && refresh) {
+    return { access, refresh };
   }
   return null;
 }
 
-// Request interceptor - add auth header
+// --- Interceptors ---
+
+// Request: Attach Token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const tokens = getTokens();
-    if (tokens?.access) {
-      config.headers.Authorization = `Bearer ${tokens.access}`;
+    // Chỉ chạy ở Client-side. Server-side cần cơ chế truyền header riêng (nếu dùng Loader)
+    if (typeof window !== "undefined") {
+      const tokens = getTokens();
+      if (tokens?.access) {
+        config.headers.Authorization = `Bearer ${tokens.access}`;
+      }
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle token refresh
+// Response: Handle Refresh Token
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -84,11 +82,11 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Skip if no refresh token or already retried
+    // Bỏ qua nếu lỗi không phải 401 hoặc đã retry rồi
     if (
       error.response?.status !== 401 ||
       originalRequest._retry ||
-      !refreshToken
+      originalRequest.url?.includes("/auth/token/refresh/") // Tránh loop nếu API refresh lỗi
     ) {
       return Promise.reject(error);
     }
@@ -109,13 +107,18 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
+      const tokens = getTokens();
+      if (!tokens?.refresh) throw new Error("No refresh token");
+
       const response = await axios.post<AuthTokens>(
         `${API_URL}/auth/token/refresh/`,
-        { refresh: refreshToken }
+        { refresh: tokens.refresh }
       );
 
       const newTokens = response.data;
       setTokens(newTokens);
+      
+      api.defaults.headers.common.Authorization = `Bearer ${newTokens.access}`;
       processQueue(null, newTokens.access);
 
       originalRequest.headers.Authorization = `Bearer ${newTokens.access}`;
@@ -124,8 +127,7 @@ api.interceptors.response.use(
       processQueue(refreshError as AxiosError, null);
       setTokens(null);
       
-      // Redirect to login
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
         window.location.href = "/login";
       }
       
@@ -136,7 +138,7 @@ api.interceptors.response.use(
   }
 );
 
-// Guest cart ID management
+// Guest Cart Management
 export function getGuestCartId(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("guestCartId");

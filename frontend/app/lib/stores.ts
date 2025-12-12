@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { User, Cart, CartItem } from "./types";
+import type { User, Cart } from "./types";
 import { authApi, cartApi } from "./services";
 import { getGuestCartId, getTokens } from "./api";
 
-// Auth Store
+// --- Auth Store ---
 interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -12,14 +12,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (data: {
-    email: string;
-    password: string;
-    password_confirm: string;
-    first_name: string;
-    last_name: string;
-    phone?: string;
-  }) => Promise<void>;
+  register: (data: any) => Promise<void>;
   checkAuth: () => Promise<void>;
 }
 
@@ -34,7 +27,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const guestCartId = getGuestCartId();
     const { user } = await authApi.login(email, password, guestCartId);
     set({ user, isAuthenticated: true });
-    // Refresh cart after login (cart merge happens on backend)
     useCartStore.getState().fetchCart();
   },
 
@@ -55,7 +47,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, isAuthenticated: false });
       return;
     }
-
     try {
       const user = await authApi.getProfile();
       set({ user, isAuthenticated: true, isLoading: false });
@@ -65,7 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-// Cart Store
+// --- Cart Store ---
 interface CartState {
   cart: Cart | null;
   isLoading: boolean;
@@ -146,7 +137,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 }));
 
-// UI Store (for modals, sidebars, etc.)
+// --- UI Store ---
 interface UIState {
   isMobileMenuOpen: boolean;
   isCartSidebarOpen: boolean;
@@ -161,21 +152,13 @@ export const useUIStore = create<UIState>((set) => ({
   isMobileMenuOpen: false,
   isCartSidebarOpen: false,
   isSearchOpen: false,
-
-  toggleMobileMenu: () =>
-    set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
-  toggleCartSidebar: () =>
-    set((state) => ({ isCartSidebarOpen: !state.isCartSidebarOpen })),
+  toggleMobileMenu: () => set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
+  toggleCartSidebar: () => set((state) => ({ isCartSidebarOpen: !state.isCartSidebarOpen })),
   toggleSearch: () => set((state) => ({ isSearchOpen: !state.isSearchOpen })),
-  closeAll: () =>
-    set({
-      isMobileMenuOpen: false,
-      isCartSidebarOpen: false,
-      isSearchOpen: false,
-    }),
+  closeAll: () => set({ isMobileMenuOpen: false, isCartSidebarOpen: false, isSearchOpen: false }),
 }));
 
-// Wishlist Store
+// --- Wishlist Store (Fixed Hydration) ---
 interface WishlistState {
   items: string[];
   isLoading: boolean;
@@ -199,7 +182,7 @@ export const useWishlistStore = create<WishlistState>()(
           const wishlist = await import("./services").then((m) =>
             m.wishlistApi.getWishlist()
           );
-          const items = wishlist.results?.map((item: { product: { id: string } }) => item.product.id) || [];
+          const items = wishlist.results?.map((item: any) => item.product.id) || [];
           set({ items, isLoading: false });
         } catch {
           set({ isLoading: false });
@@ -208,7 +191,6 @@ export const useWishlistStore = create<WishlistState>()(
 
       addItem: async (productId) => {
         if (!getTokens()) {
-          // For guest users, just add to local state
           set((state) => ({ items: [...state.items, productId] }));
           return;
         }
@@ -233,11 +215,9 @@ export const useWishlistStore = create<WishlistState>()(
         }));
       },
 
-        clearWishlist: () => {
-          // Clear local wishlist. For authenticated users we don't attempt
-          // to clear server-side wishlist in bulk; this keeps behavior simple.
-          set({ items: [] });
-        },
+      clearWishlist: () => {
+        set({ items: [] });
+      },
 
       isInWishlist: (productId) => get().items.includes(productId),
     }),
@@ -245,6 +225,7 @@ export const useWishlistStore = create<WishlistState>()(
       name: "wishlist-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ items: state.items }),
+      skipHydration: true, // QUAN TRỌNG: Tránh lỗi hydration mismatch
     }
   )
 );

@@ -12,7 +12,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import "./app.css";
 import { Header, Footer, CartSidebar } from "~/components/layout";
-import { useAuthStore, useCartStore } from "~/lib/stores";
+import { useAuthStore, useCartStore, useWishlistStore } from "~/lib/stores";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
 import { queryClient } from "~/lib/query";
@@ -53,8 +53,13 @@ export default function App() {
   const { fetchCart } = useCartStore();
 
   useEffect(() => {
+    // 1. Check Auth (sẽ đọc từ Cookie)
     checkAuth();
+    // 2. Fetch Cart
     fetchCart();
+    
+    // 3. Hydrate Wishlist (fix lỗi persist hydration mismatch)
+    useWishlistStore.persist.rehydrate();
   }, []);
 
   return (
@@ -93,10 +98,10 @@ export function ErrorBoundary({ error }: { error: unknown }) {
 
   return (
     <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
+      <h1 className="text-2xl font-bold text-red-600">{message}</h1>
+      <p className="mt-2 text-gray-600">{details}</p>
       {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
+        <pre className="w-full p-4 overflow-x-auto bg-gray-100 rounded mt-4 text-xs">
           <code>{stack}</code>
         </pre>
       )}
