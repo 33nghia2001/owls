@@ -17,9 +17,9 @@ export function Footer() {
             </p>
             <div className="flex gap-3">
               {[
-                { icon: Facebook, href: "https://facebook.com", color: "hover:text-blue-600" },
-                { icon: Instagram, href: "https://instagram.com", color: "hover:text-pink-600" },
-                { icon: Youtube, href: "https://youtube.com", color: "hover:text-red-600" }
+                { icon: Facebook, href: "https://facebook.com/owlsmarketplace", color: "hover:text-blue-600" },
+                { icon: Instagram, href: "https://instagram.com/owlsmarketplace", color: "hover:text-pink-600" },
+                { icon: Youtube, href: "https://youtube.com/@owlsmarketplace", color: "hover:text-red-600" }
               ].map((social, idx) => (
                 <a
                   key={idx}

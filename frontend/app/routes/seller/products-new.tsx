@@ -50,7 +50,7 @@ export default function NewProductPage() {
         const categoryList = Array.isArray(data) ? data : (data.results || []);
         setCategories(categoryList);
       } catch (error) {
-        console.error("Failed to load categories:", error);
+        if (import.meta.env.DEV) console.error("Failed to load categories:", error);
         toast.error("Không thể tải danh mục sản phẩm");
       }
     };
@@ -125,9 +125,10 @@ export default function NewProductPage() {
 
       toast.success("Tạo sản phẩm thành công!");
       navigate("/seller/products");
-    } catch (error: any) {
-      console.error("Create product error:", error);
-      const message = error.response?.data?.detail || "Lỗi khi tạo sản phẩm";
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error("Create product error:", error);
+      const axiosErr = error as { response?: { data?: { detail?: string } } };
+      const message = axiosErr.response?.data?.detail || "Lỗi khi tạo sản phẩm";
       toast.error(message);
     } finally {
       setIsSubmitting(false);

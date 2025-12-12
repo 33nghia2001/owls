@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { addressApi } from "~/lib/services";
 import type { ShippingAddress } from "~/lib/types";
-import { Button, Input } from "~/components/ui";
+import { Button, Input, useConfirm } from "~/components/ui";
 import {
   Dialog,
   DialogContent,
@@ -44,8 +44,9 @@ export async function clientLoader() {
       ? response 
       : (response.results || []);
     return { addresses };
-  } catch (error: any) {
-    if (error.response?.status === 401) return { addresses: [] };
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { status?: number } };
+    if (axiosErr.response?.status === 401) return { addresses: [] };
     throw error;
   }
 }
@@ -58,7 +59,7 @@ export async function clientAction({ request }: ActionFunctionArgs) {
   try {
     if (intent === "create") {
       // Map dữ liệu từ Form (name="...") sang cấu trúc Backend (Serializer)
-      const data = {
+      const data: Partial<ShippingAddress> = {
         full_name: formData.get("full_name") as string,
         phone: formData.get("phone") as string,
         
@@ -72,7 +73,6 @@ export async function clientAction({ request }: ActionFunctionArgs) {
         is_default: formData.get("is_default") === "on",
       };
 
-      // @ts-ignore
       await addressApi.createAddress(data);
       toast.success("Thêm địa chỉ thành công!");
     } 
@@ -90,8 +90,9 @@ export async function clientAction({ request }: ActionFunctionArgs) {
     }
 
     return { success: true };
-  } catch (error: any) {
-    const msg = error.response?.data?.detail || "Có lỗi xảy ra";
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { data?: { detail?: string } } };
+    const msg = axiosErr.response?.data?.detail || "Có lỗi xảy ra";
     toast.error(msg);
     return { success: false, error: msg };
   }
@@ -119,6 +120,8 @@ export default function AddressesPage() {
   const { addresses } = useLoaderData<typeof clientLoader>();
   const fetcher = useFetcher();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { confirm, ConfirmDialog } = useConfirm();
   const isSubmitting = fetcher.state === "submitting";
 
   useEffect(() => {
@@ -127,7 +130,24 @@ export default function AddressesPage() {
     }
   }, [fetcher.state, fetcher.data]);
 
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirm({
+      title: "Xóa địa chỉ?",
+      description: "Bạn có chắc muốn xóa địa chỉ này? Hành động này không thể hoàn tác.",
+      confirmText: "Xóa địa chỉ",
+      variant: "danger",
+    });
+    if (confirmed) {
+      const formData = new FormData();
+      formData.append("intent", "delete");
+      formData.append("id", id);
+      fetcher.submit(formData, { method: "post" });
+    }
+  };
+
   return (
+    <>
+    {ConfirmDialog}
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
@@ -182,12 +202,12 @@ export default function AddressesPage() {
               </div>
 
               <div className="text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                <p className="font-medium">{(addr as any).street_address ?? (addr as any).address_line1 ?? ""}</p>
-                {/* Render using multiple possible field names to support both backend and frontend shapes */}
+                <p className="font-medium">{addr.street_address || ""}</p>
+                {/* Backend Address model uses city (province) and state (ward) */}
                 <p>
-                  {(addr as any).state ?? (addr as any).ward ?? ""}
-                  {((addr as any).state ?? (addr as any).ward) && ((addr as any).city ?? (addr as any).province) ? ", " : ""}
-                  {(addr as any).city ?? (addr as any).province ?? ""}
+                  {addr.state || ""}
+                  {addr.state && addr.city ? ", " : ""}
+                  {addr.city || ""}
                 </p>
               </div>
             </div>
@@ -212,28 +232,21 @@ export default function AddressesPage() {
                   <Edit className="h-4 w-4" />
                 </button>
                 
-                <fetcher.Form 
-                  method="post" 
-                  onSubmit={(e) => {
-                    if (!confirm("Bạn có chắc muốn xóa địa chỉ này?")) {
-                      e.preventDefault();
-                    }
-                  }}
+                <button 
+                  type="button"
+                  onClick={() => handleDelete(addr.id)}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all dark:hover:bg-red-900/20"
                 >
-                  <input type="hidden" name="intent" value="delete" />
-                  <input type="hidden" name="id" value={addr.id} />
-                  <button 
-                    type="submit"
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all dark:hover:bg-red-900/20"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </fetcher.Form>
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Confirm Dialog */}
+      {ConfirmDialog}
 
       {/* Empty State */}
       {addresses.length === 0 && (
@@ -324,5 +337,6 @@ export default function AddressesPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

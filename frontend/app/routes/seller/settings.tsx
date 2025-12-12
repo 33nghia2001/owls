@@ -34,12 +34,13 @@ export async function clientLoader() {
   try {
     const vendor = await vendorsApi.getCurrentVendor();
     return { vendor };
-  } catch (error: any) {
-    if (error.response?.status === 401) {
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { status?: number } };
+    if (axiosErr.response?.status === 401) {
       window.location.href = "/login";
       return { vendor: null };
     }
-    if (error.response?.status === 404) {
+    if (axiosErr.response?.status === 404) {
       // Not a vendor
       window.location.href = "/seller/register";
       return { vendor: null };
@@ -142,10 +143,11 @@ export default function SellerSettingsPage() {
       
       // Revalidate to get fresh data
       revalidator.revalidate();
-    } catch (error: any) {
-      console.error("Update vendor error:", error);
-      const message = error.response?.data?.detail || 
-                      error.response?.data?.shop_name?.[0] || 
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error("Update vendor error:", error);
+      const axiosErr = error as { response?: { data?: { detail?: string; shop_name?: string[] } } };
+      const message = axiosErr.response?.data?.detail || 
+                      axiosErr.response?.data?.shop_name?.[0] || 
                       "Lỗi khi cập nhật thông tin";
       toast.error(message);
     } finally {

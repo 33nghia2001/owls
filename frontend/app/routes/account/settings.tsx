@@ -94,8 +94,9 @@ export default function SettingsPage() {
       
       toast.success("Cập nhật thông tin thành công!");
       navigate("/account/profile");
-    } catch (error: any) {
-      const message = error.response?.data?.detail || "Có lỗi xảy ra. Vui lòng thử lại.";
+    } catch (error: unknown) {
+      const axiosErr = error as { response?: { data?: { detail?: string } } };
+      const message = axiosErr.response?.data?.detail || "Có lỗi xảy ra. Vui lòng thử lại.";
       toast.error(message);
     } finally {
       setIsSaving(false);

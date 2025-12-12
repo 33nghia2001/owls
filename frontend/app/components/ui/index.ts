@@ -16,6 +16,9 @@ export {
   DialogDescription,
 } from "./dialog";
 
+// Confirm Dialog
+export { ConfirmDialog, useConfirm } from "./confirm-dialog";
+
 // Dropdown Menu
 export {
   DropdownMenu,

@@ -5,9 +5,13 @@ import type { AuthTokens, ApiErrorResponse } from "./types";
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/v1";
 
 // --- Cookie Keys ---
-const ACCESS_TOKEN_KEY = "accessToken";
-const REFRESH_TOKEN_KEY = "refreshToken";
+// Note: access_token and refresh_token are now httpOnly cookies set by backend
+// We can't read them directly in JS - browser sends them automatically
 const GUEST_CART_ID_KEY = "guestCartId";
+
+// Legacy keys for backward compatibility during migration
+const LEGACY_ACCESS_TOKEN_KEY = "accessToken";
+const LEGACY_REFRESH_TOKEN_KEY = "refreshToken";
 
 // --- Helper: Parse token from Server Request Cookie Header ---
 function parseCookieHeader(cookieHeader: string): Record<string, string> {
@@ -25,9 +29,17 @@ function getValueFromRequest(request: Request, key: string): string | null {
   return cookies[key] || null;
 }
 
+// httpOnly cookie names (set by backend, readable only in server requests)
+const HTTPONLY_ACCESS_TOKEN = "access_token";
+const HTTPONLY_REFRESH_TOKEN = "refresh_token";
+
 // --- Server-side helpers (for use in loaders) ---
+// Note: httpOnly cookies are automatically sent by browser, but we can read them
+// from the forwarded Cookie header in SSR loaders
 export function getTokenFromServerRequest(request: Request): string | null {
-  return getValueFromRequest(request, ACCESS_TOKEN_KEY);
+  // First try httpOnly cookie name, then legacy name
+  return getValueFromRequest(request, HTTPONLY_ACCESS_TOKEN) 
+    || getValueFromRequest(request, LEGACY_ACCESS_TOKEN_KEY);
 }
 
 export function getGuestCartIdFromServerRequest(request: Request): string | null {
@@ -39,22 +51,25 @@ export function createApi(request?: Request): AxiosInstance {
   const instance = axios.create({
     baseURL: API_URL,
     headers: { "Content-Type": "application/json" },
-    withCredentials: true,
+    withCredentials: true, // Important: send cookies with requests
   });
 
   instance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
       let token: string | null = null;
 
-      // Server Side: Get token from request header
+      // Server Side: Get token from request header (for SSR loaders)
       if (request && typeof window === "undefined") {
-        token = getValueFromRequest(request, ACCESS_TOKEN_KEY);
+        token = getTokenFromServerRequest(request);
       }
-      // Client Side: Get token from cookie
+      // Client Side: Browser automatically sends httpOnly cookies
+      // We can still check legacy non-httpOnly cookie for backward compat
       else if (typeof window !== "undefined") {
-        token = Cookies.get(ACCESS_TOKEN_KEY) || null;
+        token = Cookies.get(LEGACY_ACCESS_TOKEN_KEY) || null;
       }
 
+      // If we found a token (from SSR or legacy), attach it
+      // For httpOnly client-side, browser sends cookie automatically
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -70,41 +85,54 @@ export function createApi(request?: Request): AxiosInstance {
 export const api = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
-  withCredentials: true,
+  withCredentials: true, // Important: send cookies with requests
 });
 
-// --- Token Management (Cookie-based) ---
+// --- Token Management ---
+// Now tokens are httpOnly cookies set by backend.
+// These functions handle cleanup of legacy tokens during migration.
 export function setTokens(tokens: AuthTokens | null) {
   if (typeof window === "undefined") return;
 
-  if (tokens) {
-    const isSecure = window.location.protocol === "https:";
-    Cookies.set(ACCESS_TOKEN_KEY, tokens.access, { secure: isSecure, sameSite: "Lax", expires: 1 });
-    Cookies.set(REFRESH_TOKEN_KEY, tokens.refresh, { secure: isSecure, sameSite: "Lax", expires: 7 });
-  } else {
-    Cookies.remove(ACCESS_TOKEN_KEY);
-    Cookies.remove(REFRESH_TOKEN_KEY);
+  // Clear legacy non-httpOnly tokens (cleanup during migration)
+  // Backend now sets httpOnly cookies directly in response
+  if (!tokens) {
+    Cookies.remove(LEGACY_ACCESS_TOKEN_KEY);
+    Cookies.remove(LEGACY_REFRESH_TOKEN_KEY);
   }
+  // Note: We no longer set tokens here - backend sets httpOnly cookies
 }
 
 export function getTokens(): AuthTokens | null {
   if (typeof window === "undefined") return null;
 
-  const access = Cookies.get(ACCESS_TOKEN_KEY);
-  const refresh = Cookies.get(REFRESH_TOKEN_KEY);
+  // Check legacy tokens (for backward compatibility during migration)
+  const access = Cookies.get(LEGACY_ACCESS_TOKEN_KEY);
+  const refresh = Cookies.get(LEGACY_REFRESH_TOKEN_KEY);
 
   if (access && refresh) {
     return { access, refresh };
   }
+  
+  // httpOnly tokens are not readable in JS - return null
+  // Browser sends them automatically with withCredentials: true
   return null;
+}
+
+// Check if user is authenticated (has valid session)
+// Since tokens are httpOnly, we can't read them directly
+// This checks for legacy tokens or assumes authenticated if API returns 200
+export function isAuthenticated(): boolean {
+  return getTokens() !== null;
 }
 
 // --- Interceptors ---
 
-// Request: Attach Token
+// Request: Attach Token (for legacy tokens during migration)
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Chỉ chạy ở Client-side. Server-side cần cơ chế truyền header riêng (nếu dùng Loader)
+    // For legacy non-httpOnly tokens, attach them manually
+    // httpOnly cookies are sent automatically by browser
     if (typeof window !== "undefined") {
       const tokens = getTokens();
       if (tokens?.access) {
@@ -119,16 +147,16 @@ api.interceptors.request.use(
 // Response: Handle Refresh Token
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (token: string) => void;
+  resolve: () => void;
   reject: (error: AxiosError) => void;
 }> = [];
 
-const processQueue = (error: AxiosError | null, token: string | null = null) => {
+const processQueue = (error: AxiosError | null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
-    } else if (token) {
-      prom.resolve(token);
+    } else {
+      prom.resolve();
     }
   });
   failedQueue = [];
@@ -141,11 +169,11 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Bỏ qua nếu lỗi không phải 401 hoặc đã retry rồi
+    // Skip if not 401 or already retried
     if (
       error.response?.status !== 401 ||
       originalRequest._retry ||
-      originalRequest.url?.includes("/auth/token/refresh/") // Tránh loop nếu API refresh lỗi
+      originalRequest.url?.includes("/auth/token_refresh/") // Avoid loop
     ) {
       return Promise.reject(error);
     }
@@ -153,8 +181,8 @@ api.interceptors.response.use(
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({
-          resolve: (token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
+          resolve: () => {
+            // Retry the request - browser will send new httpOnly cookie automatically
             resolve(api(originalRequest));
           },
           reject,
@@ -166,26 +194,26 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const tokens = getTokens();
-      if (!tokens?.refresh) throw new Error("No refresh token");
-
-      const response = await axios.post<AuthTokens>(
-        `${API_URL}/auth/token/refresh/`,
-        { refresh: tokens.refresh }
+      // Call refresh endpoint - browser sends httpOnly refresh_token cookie automatically
+      // Backend will set new httpOnly cookies in response
+      await axios.post(
+        `${API_URL}/auth/token_refresh/`,
+        {},  // No body needed - refresh token is in httpOnly cookie
+        { withCredentials: true }  // Important: send/receive cookies
       );
 
-      const newTokens = response.data;
-      setTokens(newTokens);
-      
-      api.defaults.headers.common.Authorization = `Bearer ${newTokens.access}`;
-      processQueue(null, newTokens.access);
-
-      originalRequest.headers.Authorization = `Bearer ${newTokens.access}`;
-      return api(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError as AxiosError, null);
+      // Clear legacy tokens if any
       setTokens(null);
       
+      processQueue(null);
+
+      // Retry original request - browser sends new httpOnly cookie automatically
+      return api(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError as AxiosError);
+      setTokens(null);  // Clear legacy tokens
+      
+      // Redirect to login if not already there
       if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
         window.location.href = "/login";
       }

@@ -77,9 +77,10 @@ export default function RegisterPage() {
       
       toast.success("Đăng ký thành công!");
       navigate("/");
-    } catch (error: any) {
-      console.error("Register error:", error.response?.data);
-      const errorData = error.response?.data;
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error("Register error:", error);
+      const axiosErr = error as { response?: { data?: Record<string, string | string[]> } };
+      const errorData = axiosErr.response?.data;
       
       if (errorData) {
         const errors: string[] = [];
@@ -87,7 +88,7 @@ export default function RegisterPage() {
         if (errorData.password) errors.push(`Mật khẩu: ${Array.isArray(errorData.password) ? errorData.password[0] : errorData.password}`);
         if (errorData.phone) errors.push(`SĐT: ${Array.isArray(errorData.phone) ? errorData.phone[0] : errorData.phone}`);
         if (errorData.non_field_errors) errors.push(Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors[0] : errorData.non_field_errors);
-        if (errorData.detail) errors.push(errorData.detail);
+        if (errorData.detail) errors.push(typeof errorData.detail === 'string' ? errorData.detail : String(errorData.detail));
         
         if (errors.length > 0) {
           setServerError(errors.join(". "));

@@ -17,6 +17,7 @@ import { authApi, ordersApi } from "~/lib/services";
 import { useAuthStore } from "~/lib/stores";
 import { formatCurrency, cn } from "~/lib/utils";
 import { Button } from "~/components/ui";
+import type { Order } from "~/lib/types";
 // Use Intl.DateTimeFormat instead of date-fns to avoid extra dependency in dev
 
 // --- META ---
@@ -41,8 +42,9 @@ export async function clientLoader() {
       orders: Array.isArray(ordersData) ? ordersData : (ordersData.results || []),
       totalOrders: ordersData.count || 0
     };
-  } catch (error: any) {
-    if (error.response?.status === 401) {
+  } catch (error: unknown) {
+    const axiosError = error as { response?: { status?: number } };
+    if (axiosError.response?.status === 401) {
       window.location.href = "/login";
       return null;
     }
@@ -86,10 +88,10 @@ export default function AccountDashboard() {
   const recentOrder = orders[0];
 
   // Tính toán thống kê nhanh
-  const pendingCount = orders.filter((o: any) => ['pending', 'confirmed'].includes(o.status)).length;
+  const pendingCount = orders.filter((o: Order) => ['pending', 'confirmed'].includes(o.status)).length;
   const totalSpent = orders
-    .filter((o: any) => o.status !== 'cancelled')
-    .reduce((sum: number, o: any) => sum + Number(o.total.amount || o.total), 0);
+    .filter((o: Order) => o.status !== 'cancelled')
+    .reduce((sum: number, o: Order) => sum + Number(o.total.amount || o.total), 0);
 
   const handleLogout = async () => {
     await logout();

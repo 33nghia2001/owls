@@ -47,4 +47,11 @@ export default [
   route("seller/orders/:id", "routes/seller/order-detail.tsx"),
   route("seller/settings", "routes/seller/settings.tsx"),
 
+  // Static/Legal pages
+  route("privacy", "routes/pages/privacy.tsx"),
+  route("terms", "routes/pages/terms.tsx"),
+  route("shipping-policy", "routes/pages/shipping-policy.tsx"),
+  route("return-policy", "routes/pages/return-policy.tsx"),
+  route("faq", "routes/pages/faq.tsx"),
+
 ] satisfies RouteConfig;

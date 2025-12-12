@@ -183,9 +183,11 @@ export interface ProductListItem {
   id: string;
   name: string;
   slug: string;
+  sku?: string;
   price: Money | string | number;
   compare_price: Money | string | number | null;
   is_on_sale: boolean;
+  is_active?: boolean;
   discount_percentage: number;
   primary_image: ProductImage | null;
   vendor_name: string;
@@ -195,6 +197,8 @@ export interface ProductListItem {
   sold_count: number;
   is_featured: boolean;
   has_variants: boolean;
+  inventory_quantity?: number;
+  quantity?: number;
 }
 
 // ==========================================
@@ -271,9 +275,6 @@ export interface Order {
   shipping_ward: string;         // Phường / Xã
   shipping_country: string;
   shipping_postal_code: string;
-  // Backward compatibility (optional)
-  shipping_city?: string;
-  shipping_state?: string;
   
   // --- Thông tin thanh toán (Billing) ---
   billing_name?: string;
@@ -283,9 +284,6 @@ export interface Order {
   billing_ward?: string;
   billing_country?: string;
   billing_postal_code?: string;
-  // Backward compatibility
-  billing_city?: string;
-  billing_state?: string;
   
   customer_note?: string;
   coupon?: string | null; // Coupon code or ID

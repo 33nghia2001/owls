@@ -14,7 +14,8 @@ import { useEffect, useState } from "react";
 import { useWishlist } from "~/lib/query/hooks";
 import { productsApi } from "~/lib/services";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
-import { Button } from "~/components/ui";
+import { Button, useConfirm } from "~/components/ui";
+import type { Product } from "~/lib/types";
 import toast from "react-hot-toast";
 
 // --- META ---
@@ -29,8 +30,9 @@ export default function WishlistPage() {
   const { items: wishlistIds, removeItem, clearWishlist } = useWishlistStore();
   const addToCartMutation = useAddToCart(); // Use React Query mutation
   const wishlistQuery = useWishlist();
+  const { confirm, ConfirmDialog } = useConfirm();
 
-  const [localProducts, setLocalProducts] = useState<any[]>([]);
+  const [localProducts, setLocalProducts] = useState<Product[]>([]);
 
   // If user is authenticated the query will return full product objects.
   // For guest local wishlist (stored as IDs) we fetch product details.
@@ -51,7 +53,7 @@ export default function WishlistPage() {
     loadLocal();
   }, [wishlistIds]);
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (product: Product) => {
     // Use React Query mutation for consistent cart state management
     addToCartMutation.mutate(
       {
@@ -71,16 +73,25 @@ export default function WishlistPage() {
     toast.success(`Đã xóa ${name || "sản phẩm"} khỏi danh sách yêu thích`);
   };
 
-  const handleClearAll = () => {
-    if (confirm("Bạn có chắc chắn muốn xóa tất cả sản phẩm yêu thích?")) {
+  const handleClearAll = async () => {
+    const confirmed = await confirm({
+      title: "Xóa tất cả sản phẩm yêu thích?",
+      description: "Bạn có chắc chắn muốn xóa tất cả sản phẩm khỏi danh sách yêu thích? Hành động này không thể hoàn tác.",
+      confirmText: "Xóa tất cả",
+      variant: "danger",
+    });
+    if (confirmed) {
       clearWishlist();
       toast.success("Đã xóa toàn bộ danh sách");
     }
   };
 
   // Determine products list to render
-  const products = wishlistQuery.data
-    ? (wishlistQuery.data.results || []).map((r: any) => r.product)
+  interface WishlistResult {
+    product: Product;
+  }
+  const products: Product[] = wishlistQuery.data
+    ? (wishlistQuery.data.results || []).map((r: WishlistResult) => r.product)
     : localProducts;
 
   // --- EMPTY STATE ---
@@ -110,6 +121,8 @@ export default function WishlistPage() {
 
   // --- MAIN CONTENT ---
   return (
+    <>
+    {ConfirmDialog}
     <div className="min-h-screen bg-gray-50/50 dark:bg-[#050505] py-8">
       <div className="container mx-auto px-4">
         {/* Header */}
@@ -137,7 +150,7 @@ export default function WishlistPage() {
         {/* Grid */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <AnimatePresence mode="popLayout">
-              {products.map((item: any) => (
+              {products.map((item) => (
               <motion.div
                 key={item.id}
                 layout
@@ -213,5 +226,6 @@ export default function WishlistPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

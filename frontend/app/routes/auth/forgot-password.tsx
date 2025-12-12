@@ -21,7 +21,7 @@ export async function clientAction({ request }: { request: Request }) {
   try {
     await authApi.forgotPassword(email);
     return { success: true, email };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Don't reveal if email exists or not for security
     return { success: true, email };
   }
@@ -45,13 +45,12 @@ export default function ForgotPasswordPage() {
               Kiểm tra email
             </h1>
             <p className="mb-6 text-gray-600 dark:text-gray-400">
-              Chúng tôi đã gửi hướng dẫn khôi phục mật khẩu đến{" "}
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {actionData.email}
-              </span>
+              {/* Security: Don't reveal if email exists - use generic message */}
+              Nếu email <span className="font-medium text-gray-900 dark:text-gray-100">{actionData.email}</span> đã đăng ký tài khoản,
+              bạn sẽ nhận được hướng dẫn khôi phục mật khẩu trong vài phút tới.
             </p>
             <p className="mb-6 text-sm text-gray-500">
-              Không nhận được email? Kiểm tra thư mục spam hoặc thử lại với email khác.
+              Không nhận được email? Kiểm tra thư mục spam, hoặc đảm bảo bạn đã nhập đúng email đăng ký.
             </p>
             <Link to="/login">
               <Button variant="outline" className="w-full">

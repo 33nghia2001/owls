@@ -119,6 +119,11 @@ export const checkoutSchema = shippingAddressSchema.extend({
     .enum(["cod", "vnpay", "stripe"])
     .catch("cod"),
   coupon_code: z.string().optional(),
+  // Guest checkout email (optional - only required when not logged in)
+  email: z
+    .string()
+    .email("Email không hợp lệ")
+    .optional(),
 });
 
 // ============================================

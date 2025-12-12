@@ -22,7 +22,10 @@ export default function CheckoutSuccessPage() {
   const [status, setStatus] = useState<OrderStatus>("loading");
   const [order, setOrder] = useState<Order | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 5;
+  
+  // Increased from 5 to 15 retries (30s total) to handle slow IPN callbacks
+  // VNPay/Stripe webhooks can take 15-30s in some cases
+  const maxRetries = 15;
 
   useEffect(() => {
     if (!orderId) {
@@ -42,7 +45,7 @@ export default function CheckoutSuccessPage() {
         } else {
           // Payment pending - might be waiting for IPN callback
           if (retryCount < maxRetries) {
-            // Poll again after 2 seconds
+            // Poll again after 2 seconds (total 30s with 15 retries)
             setTimeout(() => setRetryCount((c) => c + 1), 2000);
             setStatus("pending");
           } else {

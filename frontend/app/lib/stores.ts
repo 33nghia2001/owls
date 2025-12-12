@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "./types";
 import { authApi } from "./services";
-import { getTokens } from "./api";
+import { isAuthenticated as checkTokenAuth } from "./api";
 
 // --- Auth Store ---
 interface AuthState {
@@ -39,15 +39,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const tokens = getTokens();
-    if (!tokens) {
-      set({ isLoading: false, isAuthenticated: false });
-      return;
-    }
+    // With httpOnly cookies, we can't check tokens directly
+    // Try to get user profile - if it succeeds, we're authenticated
     try {
       const user = await authApi.getProfile();
       set({ user, isAuthenticated: true, isLoading: false });
     } catch {
+      // If profile fails, check legacy tokens for backward compatibility
+      if (!checkTokenAuth()) {
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
@@ -92,40 +94,42 @@ export const useWishlistStore = create<WishlistState>()(
       isLoading: false,
 
       fetchWishlist: async () => {
-        if (!getTokens()) return;
+        // With httpOnly cookies, we just try to fetch and let server decide
         set({ isLoading: true });
         try {
           const wishlist = await import("./services").then((m) =>
             m.wishlistApi.getWishlist()
           );
-          const items = wishlist.results?.map((item: any) => item.product.id) || [];
+          const items = wishlist.results?.map((item: { product: { id: string } }) => item.product.id) || [];
           set({ items, isLoading: false });
         } catch {
+          // User not authenticated or error - use local storage
           set({ isLoading: false });
         }
       },
 
       addItem: async (productId) => {
-        if (!getTokens()) {
+        // Try server-side first, fall back to local
+        try {
+          await import("./services").then((m) =>
+            m.wishlistApi.addToWishlist(productId)
+          );
           set((state) => ({ items: [...state.items, productId] }));
-          return;
+        } catch {
+          // Not authenticated - store locally
+          set((state) => ({ items: [...state.items, productId] }));
         }
-        await import("./services").then((m) =>
-          m.wishlistApi.addToWishlist(productId)
-        );
-        set((state) => ({ items: [...state.items, productId] }));
       },
 
       removeItem: async (productId) => {
-        if (!getTokens()) {
-          set((state) => ({
-            items: state.items.filter((id) => id !== productId),
-          }));
-          return;
+        // Try server-side first, fall back to local
+        try {
+          await import("./services").then((m) =>
+            m.wishlistApi.removeFromWishlist(productId)
+          );
+        } catch {
+          // Not authenticated or error - continue with local removal
         }
-        await import("./services").then((m) =>
-          m.wishlistApi.removeFromWishlist(productId)
-        );
         set((state) => ({
           items: state.items.filter((id) => id !== productId),
         }));

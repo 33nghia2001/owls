@@ -58,7 +58,7 @@ export function ProductCard({ product, className, index = 0 }: ProductCardProps)
         });
       },
       onError: (error) => {
-        console.error("Failed to add to cart:", error);
+        if (import.meta.env.DEV) console.error("Failed to add to cart:", error);
         toast.error({
           title: "Lỗi",
           description: "Không thể thêm sản phẩm vào giỏ hàng",
@@ -212,7 +212,7 @@ export function ProductCard({ product, className, index = 0 }: ProductCardProps)
         <div className="flex flex-1 flex-col p-4">
           {/* Vendor */}
           <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-            {product.vendor.shop_name}
+            {product.vendor_name}
           </p>
 
           {/* Product Name */}

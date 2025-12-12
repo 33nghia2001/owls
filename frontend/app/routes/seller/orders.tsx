@@ -11,6 +11,17 @@ import { formatCurrency, cn } from "~/lib/utils";
 import { Button, Input } from "~/components/ui";
 // Use Intl.DateTimeFormat to avoid external dependency on date-fns during dev
 
+// Type for vendor order items
+interface VendorOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  created_at: string;
+  total_amount?: number | string;
+  total?: number | string;
+  customer_name: string;
+}
+
 
 export function meta() {
   return [
@@ -129,7 +140,7 @@ export default function SellerOrdersPage() {
       {/* Order List */}
       <div className="space-y-4">
         {orders.length > 0 ? (
-          orders.map((order: any) => (
+          (orders as VendorOrder[]).map((order) => (
             <div 
               key={order.id} 
               className="group rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-orange-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"

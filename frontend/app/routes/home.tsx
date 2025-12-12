@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link, useLoaderData, type LoaderFunctionArgs, Form } from "react-router";
 import { 
   ChevronRight, Sparkles, TrendingUp, Clock, Tag, Truck, Shield, 
@@ -8,7 +9,35 @@ import { productsApi, vendorsApi } from "~/lib/services";
 import { ProductGrid } from "~/components/product";
 import { Button } from "~/components/ui";
 import { cn, formatPrice, getImageUrl } from "~/lib/utils";
-import type { Category, Vendor } from "~/lib/types";
+import type { Category, Vendor, ProductListItem } from "~/lib/types";
+
+// Flash Sale countdown hook
+function useCountdown(endTime: Date) {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const diff = endTime.getTime() - Date.now();
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      const diff = endTime.getTime() - Date.now();
+      setTimeLeft(Math.max(0, Math.floor(diff / 1000)));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [endTime, timeLeft]);
+
+  const hours = Math.floor(timeLeft / 3600);
+  const minutes = Math.floor((timeLeft % 3600) / 60);
+  const seconds = timeLeft % 60;
+  
+  return {
+    hours: String(hours).padStart(2, '0'),
+    minutes: String(minutes).padStart(2, '0'),
+    seconds: String(seconds).padStart(2, '0'),
+    isExpired: timeLeft <= 0
+  };
+}
 
 export function meta() {
   return [
@@ -35,7 +64,7 @@ export async function loader({}: LoaderFunctionArgs) {
       topVendors: vendorsData?.results?.slice(0, 8) || [],
     };
   } catch (error) {
-    console.error("Failed to load homepage data:", error);
+    if (import.meta.env.DEV) console.error("Failed to load homepage data:", error);
     return {
       featured: [],
       bestSellers: [],
@@ -60,6 +89,15 @@ const staggerContainer = {
 export default function Home() {
   const { featured, bestSellers, newArrivals, categories, topVendors } = useLoaderData<typeof loader>();
   const { scrollY } = useScroll();
+  
+  // Flash Sale countdown - kết thúc vào 23:59 mỗi ngày
+  const getFlashSaleEndTime = () => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  };
+  const countdown = useCountdown(getFlashSaleEndTime());
   
   // Parallax effects
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
@@ -165,7 +203,9 @@ export default function Home() {
                    <div className="flex items-center gap-2 mt-1 text-red-600 dark:text-red-400 font-medium">
                       <Timer className="w-4 h-4" />
                       <span>Kết thúc trong:</span>
-                      <span className="flex gap-1 font-mono font-bold bg-red-100 dark:bg-red-900/40 px-2 rounded text-red-700 dark:text-red-300">02:15:40</span>
+                      <span className="flex gap-1 font-mono font-bold bg-red-100 dark:bg-red-900/40 px-2 rounded text-red-700 dark:text-red-300">
+                        {countdown.hours}:{countdown.minutes}:{countdown.seconds}
+                      </span>
                    </div>
                 </div>
              </div>
@@ -176,9 +216,11 @@ export default function Home() {
           
           {/* Horizontal Scroll Flash Sale Items */}
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-             {bestSellers.slice(0, 6).map((product: any) => (
+             {(bestSellers as ProductListItem[]).slice(0, 6).map((product) => (
                 <div key={product.id} className="min-w-[200px] w-[200px] snap-center rounded-xl bg-white dark:bg-gray-900 border border-orange-100 dark:border-orange-900/30 p-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                   <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">-30%</div>
+                   <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                     {product.discount_percentage && product.discount_percentage > 0 ? `-${Math.round(product.discount_percentage)}%` : '-30%'}
+                   </div>
                    <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-gray-100 dark:bg-gray-800">
                       <img src={getImageUrl(product.primary_image?.image)} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                    </div>
@@ -230,7 +272,7 @@ export default function Home() {
                           {cat.image ? (
                             <img src={cat.image} alt={cat.name} className="h-9 w-9 object-contain" />
                           ) : (
-                            <span>{cat.icon || "📦"}</span>
+                            <span>{(cat as Category & { icon?: string }).icon || "📦"}</span>
                           )}
                         </div>
                         <h3 className="text-center text-sm font-semibold text-gray-700 transition-colors group-hover:text-orange-600 dark:text-gray-300">
@@ -281,9 +323,9 @@ export default function Home() {
                          <h3 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">{vendor.shop_name}</h3>
                          <div className="mt-2 flex items-center gap-1 text-sm text-gray-500">
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium text-gray-900 dark:text-gray-100">{vendor.rating.toFixed(1)}</span>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{(vendor.rating ?? 0).toFixed(1)}</span>
                             <span>•</span>
-                            <span>{vendor.total_products} sản phẩm</span>
+                            <span>{vendor.total_products ?? 0} sản phẩm</span>
                          </div>
                          <Button variant="secondary" className="mt-4 w-full h-9 rounded-full text-xs hover:bg-blue-600 hover:text-white dark:border-gray-700">
                             Xem Shop
@@ -408,7 +450,7 @@ export default function Home() {
                       <Link to="/products?sort=-sold_count" className="text-sm font-medium text-gray-500 hover:text-red-600">Xem thêm</Link>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      {bestSellers.slice(0, 4).map((product: any) => (
+                      {(bestSellers as ProductListItem[]).slice(0, 4).map((product) => (
                         <div key={product.id} className="group relative rounded-xl border border-gray-100 bg-white p-3 transition-all hover:shadow-lg hover:border-red-100 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700">
                           <div className="relative aspect-square overflow-hidden rounded-lg bg-gray-100 mb-3">
                              <img src={getImageUrl(product.primary_image?.image)} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -438,7 +480,7 @@ export default function Home() {
                       <Link to="/products?sort=-created_at" className="text-sm font-medium text-gray-500 hover:text-green-600">Xem thêm</Link>
                     </div>
                     <div className="space-y-4">
-                      {newArrivals.slice(0, 3).map((product: any) => (
+                      {(newArrivals as ProductListItem[]).slice(0, 3).map((product) => (
                         <Link key={product.id} to={`/products/${product.slug}`} className="group flex gap-4 rounded-xl border border-gray-100 bg-white p-3 transition-colors hover:border-green-200 hover:bg-green-50/10 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-green-900/50">
                           <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
                              <img src={getImageUrl(product.primary_image?.image)} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
@@ -448,7 +490,7 @@ export default function Home() {
                              <h4 className="line-clamp-2 font-medium text-gray-900 group-hover:text-green-700 dark:text-gray-100">{product.name}</h4>
                              <div className="mt-2 flex items-center justify-between">
                                 <span className="text-lg font-bold text-gray-900 dark:text-white">{formatPrice(product.price)}</span>
-                                <span className="text-xs text-gray-500">{product.vendor.shop_name}</span>
+                                <span className="text-xs text-gray-500">{product.vendor_name}</span>
                              </div>
                           </div>
                         </Link>

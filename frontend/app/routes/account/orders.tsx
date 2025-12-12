@@ -14,9 +14,10 @@ export async function loader({}: LoaderFunctionArgs) {
   try {
     const data = await ordersApi.getOrders();
     return { orders: data.results || [] };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { status?: number } };
     // If 401, user is not authenticated - return empty orders
-    if (error.response?.status === 401) {
+    if (axiosErr.response?.status === 401) {
       return { orders: [] };
     }
     throw error;

@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   MapPin, Phone, User, CreditCard, Truck, Package, 
   AlertCircle, CheckCircle, ChevronRight, Tag, Loader2,
-  RefreshCw, AlertTriangle, X
+  RefreshCw, AlertTriangle, X, Mail
 } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
 import { useCart } from "~/lib/query";
@@ -14,6 +14,8 @@ import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
 import { Button } from "~/components/ui";
 import { getErrorMessage } from "~/lib/types/api-errors";
+import { getGuestCartId } from "~/lib/api";
+import type { CartItem } from "~/lib/types";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
@@ -117,6 +119,9 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
+      // Get guest cart ID for guest checkout
+      const guestCartId = !user ? getGuestCartId() : null;
+      
       // Step 1: Create order with shipping address (New Mapping)
       const orderData = {
         shipping_name: data.full_name,
@@ -132,6 +137,10 @@ export default function CheckoutPage() {
         customer_note: data.note || "",
         coupon_code: data.coupon_code || undefined,
         payment_method: data.payment_method,
+        
+        // Guest checkout fields
+        guest_cart_id: guestCartId || undefined,
+        guest_email: !user ? data.email : undefined,
       };
 
       const orderResponse = await ordersApi.createOrder(orderData);
@@ -147,9 +156,26 @@ export default function CheckoutPage() {
           method: data.payment_method,
         });
 
-        if (paymentResponse.payment_url) {
+        // Validate payment redirect URL before navigating
+        const allowedDomains = [
+          "sandbox.vnpayment.vn",
+          "vnpayment.vn",
+          "checkout.stripe.com",
+          "stripe.com",
+        ];
+        
+        const validatePaymentUrl = (url: string): boolean => {
+          try {
+            const parsedUrl = new URL(url);
+            return allowedDomains.some(domain => parsedUrl.hostname.endsWith(domain));
+          } catch {
+            return false;
+          }
+        };
+
+        if (paymentResponse.payment_url && validatePaymentUrl(paymentResponse.payment_url)) {
           window.location.href = paymentResponse.payment_url;
-        } else if (paymentResponse.checkout_url) {
+        } else if (paymentResponse.checkout_url && validatePaymentUrl(paymentResponse.checkout_url)) {
           window.location.href = paymentResponse.checkout_url;
         } else {
           toast.success("Đặt hàng thành công!");
@@ -213,6 +239,12 @@ export default function CheckoutPage() {
   }
 
   const subtotal = parsePrice(cart.subtotal);
+  
+  // Shipping cost calculation (matches backend settings)
+  const FREE_SHIPPING_THRESHOLD = 500000; // VND - should match backend FREE_SHIPPING_THRESHOLD
+  const DEFAULT_SHIPPING_COST = 30000; // VND - should match backend DEFAULT_SHIPPING_COST
+  const shippingCost = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_COST;
+  const total = subtotal + shippingCost;
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-[#050505] py-8">
@@ -352,6 +384,27 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
+                  {/* Email (for guest checkout) */}
+                  {!user && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                        <input
+                          {...register("email")}
+                          type="email"
+                          placeholder="email@example.com"
+                          className={cn(inputClasses(!!errors.email), "pl-10")}
+                        />
+                      </div>
+                      {errors.email && (
+                        <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Phone */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -488,7 +541,7 @@ export default function CheckoutPage() {
                 </h2>
 
                 <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
-                  {cart.items.map((item: any) => (
+                  {cart.items.map((item: CartItem) => (
                     <div key={item.id} className="flex gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-gray-100 dark:border-gray-800">
                         {item.product.primary_image ? (
@@ -544,8 +597,21 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Phí vận chuyển</span>
-                    <span className="text-gray-900 dark:text-gray-100">Miễn phí</span>
+                    {shippingCost === 0 ? (
+                      <span className="text-green-600 dark:text-green-400 font-medium">
+                        Miễn phí
+                      </span>
+                    ) : (
+                      <span className="text-gray-900 dark:text-gray-100">
+                        {formatCurrency(shippingCost)}
+                      </span>
+                    )}
                   </div>
+                  {subtotal > 0 && subtotal < FREE_SHIPPING_THRESHOLD && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Mua thêm {formatCurrency(FREE_SHIPPING_THRESHOLD - subtotal)} để được miễn phí vận chuyển
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
@@ -554,7 +620,7 @@ export default function CheckoutPage() {
                       Tổng cộng
                     </span>
                     <span className="text-xl font-bold text-orange-500">
-                      {formatCurrency(subtotal)}
+                      {formatCurrency(total)}
                     </span>
                   </div>
                 </div>

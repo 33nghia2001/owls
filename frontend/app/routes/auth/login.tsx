@@ -42,8 +42,9 @@ export default function LoginPage() {
       await login(data.email, data.password);
       toast.success("Đăng nhập thành công!");
       navigate("/");
-    } catch (error: any) {
-      const message = error.response?.data?.detail || "Email hoặc mật khẩu không đúng";
+    } catch (error: unknown) {
+      const axiosErr = error as { response?: { data?: { detail?: string } } };
+      const message = axiosErr.response?.data?.detail || "Email hoặc mật khẩu không đúng";
       setServerError(message);
     }
   };

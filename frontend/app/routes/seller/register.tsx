@@ -39,8 +39,9 @@ export default function SellerRegisterPage() {
       toast.success("Gửi đơn đăng ký thành công! Vui lòng chờ duyệt.");
       await checkAuth(); // Refresh user state
       navigate("/seller"); // Quay lại dashboard để xem trạng thái chờ
-    } catch (error: any) {
-      const msg = error.response?.data?.error || error.response?.data?.shop_name?.[0] || "Đăng ký thất bại";
+    } catch (error: unknown) {
+      const axiosErr = error as { response?: { data?: { error?: string; shop_name?: string[] } } };
+      const msg = axiosErr.response?.data?.error || axiosErr.response?.data?.shop_name?.[0] || "Đăng ký thất bại";
       toast.error(msg);
     } finally {
       setIsSubmitting(false);

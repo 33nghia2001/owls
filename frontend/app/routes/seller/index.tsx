@@ -42,8 +42,9 @@ export async function clientLoader() {
     }
 
     return { user, stats, vendorProfile };
-  } catch (error: any) {
-    if (error.response?.status === 401) {
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { status?: number } };
+    if (axiosErr.response?.status === 401) {
       window.location.href = "/auth/login";
       return null;
     }

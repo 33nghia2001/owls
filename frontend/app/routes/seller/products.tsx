@@ -11,8 +11,9 @@ import {
   Filter 
 } from "lucide-react";
 import { sellerProductsApi } from "~/lib/services";
-import { formatCurrency, cn } from "~/lib/utils";
-import { Button, Input } from "~/components/ui";
+import { formatPrice, cn } from "~/lib/utils";
+import { Button, Input, useConfirm } from "~/components/ui";
+import type { ProductListItem } from "~/lib/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,11 +56,18 @@ export default function SellerProductsPage() {
   const { products, pagination } = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
+  const { confirm, ConfirmDialog } = useConfirm();
   
   const currentStatus = searchParams.get("status") || "all";
 
   const handleDelete = async (slug: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa sản phẩm này? Hành động này không thể hoàn tác.")) {
+    const confirmed = await confirm({
+      title: "Xóa sản phẩm?",
+      description: "Bạn có chắc chắn muốn xóa sản phẩm này? Hành động này không thể hoàn tác.",
+      confirmText: "Xóa sản phẩm",
+      variant: "danger",
+    });
+    if (confirmed) {
       try {
         await sellerProductsApi.deleteProduct(slug);
         toast.success("Đã xóa sản phẩm");
@@ -72,6 +80,8 @@ export default function SellerProductsPage() {
   };
 
   return (
+    <>
+    {ConfirmDialog}
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
@@ -147,7 +157,7 @@ export default function SellerProductsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {products.length > 0 ? (
-                products.map((product: any) => (
+                (products as ProductListItem[]).map((product) => (
                   <tr key={product.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -169,12 +179,12 @@ export default function SellerProductsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
-                      {formatCurrency(product.price?.amount || product.price)}
+                      {formatPrice(product.price)}
                     </td>
                     <td className="px-6 py-4">
-                      {product.inventory_quantity > 0 ? (
+                      {(product.inventory_quantity ?? product.quantity ?? 0) > 0 ? (
                         <span className="text-green-600 dark:text-green-400 font-medium">
-                          {product.inventory_quantity}
+                          {product.inventory_quantity ?? product.quantity ?? 0}
                         </span>
                       ) : (
                         <span className="text-red-500 font-medium">Hết hàng</span>
@@ -264,5 +274,6 @@ export default function SellerProductsPage() {
         )}
       </div>
     </div>
+    </>
   );
 }

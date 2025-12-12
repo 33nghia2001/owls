@@ -1,7 +1,8 @@
-import api, { setTokens, getTokens, setGuestCartId } from "./api";
-import type { User, AuthTokens, ShippingAddress } from "./types";
+import api, { setTokens, setGuestCartId, isAuthenticated } from "./api";
+import type { User, ShippingAddress } from "./types";
 
 // Auth APIs
+// Note: Tokens are now httpOnly cookies set by backend automatically
 export const authApi = {
   register: async (data: {
     email: string;
@@ -11,33 +12,36 @@ export const authApi = {
     last_name: string;
     phone?: string;
   }) => {
-    const response = await api.post<{ user: User; tokens: AuthTokens }>(
+    const response = await api.post<{ user: User; message: string }>(
       "/auth/register/",
       data
     );
-    setTokens(response.data.tokens);
+    // Backend sets httpOnly cookies - no need to setTokens here
+    // Clear any legacy tokens
+    setTokens(null);
     return response.data;
   },
 
   login: async (email: string, password: string, guestCartId?: string | null) => {
-    const response = await api.post<{ user: User; tokens: AuthTokens }>(
+    const response = await api.post<{ user: User; message: string }>(
       "/auth/login/",
       { email, password, guest_cart_id: guestCartId }
     );
-    setTokens(response.data.tokens);
+    // Backend sets httpOnly cookies - no need to setTokens here
+    // Clear any legacy tokens and guest cart
+    setTokens(null);
     setGuestCartId(null);
     return response.data;
   },
 
   logout: async () => {
-    const tokens = getTokens();
-    if (tokens?.refresh) {
-      try {
-        await api.post("/auth/logout/", { refresh: tokens.refresh });
-      } catch {
-        // Ignore errors
-      }
+    try {
+      // Backend will read httpOnly cookie and blacklist it
+      await api.post("/auth/logout/");
+    } catch {
+      // Ignore errors
     }
+    // Clear any legacy tokens
     setTokens(null);
   },
 
@@ -236,7 +240,8 @@ export const cartApi = {
     guest_cart_id?: string | null;
   }) => {
     const response = await api.post("/cart/add/", data);
-    if (response.data.cart_id && !getTokens()) {
+    // Save guest cart ID if user is not authenticated
+    if (response.data.cart_id && !isAuthenticated()) {
       setGuestCartId(response.data.cart_id);
     }
     return response.data;

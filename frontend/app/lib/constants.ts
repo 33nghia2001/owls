@@ -38,7 +38,7 @@ export type PaymentStatusKey = keyof typeof PAYMENT_STATUS;
 
 export const VENDOR_STATUS = {
   pending: { label: "Chờ duyệt", color: "yellow", bgClass: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  active: { label: "Hoạt động", color: "green", bgClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  approved: { label: "Hoạt động", color: "green", bgClass: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
   suspended: { label: "Tạm ngưng", color: "red", bgClass: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   rejected: { label: "Từ chối", color: "gray", bgClass: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400" },
 } as const;
