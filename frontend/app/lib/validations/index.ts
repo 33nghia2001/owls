@@ -104,12 +104,10 @@ export const shippingAddressSchema = z.object({
   city: z
     .string()
     .min(1, "Tỉnh/Thành phố không được để trống"),
-  district: z
-    .string()
-    .min(1, "Quận/Huyện không được để trống"),
+  // Đã xóa district theo yêu cầu
   ward: z
     .string()
-    .optional(),
+    .min(1, "Phường/Xã không được để trống"),
   note: z
     .string()
     .max(500, "Ghi chú không quá 500 ký tự")

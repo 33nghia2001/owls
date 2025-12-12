@@ -6,8 +6,8 @@ import {
   MapPin, Phone, User, CreditCard, Truck, Package, 
   AlertCircle, CheckCircle, ChevronRight, Tag, Loader2
 } from "lucide-react";
-import { useAuthStore } from "~/lib/stores"; // Đã bỏ useCartStore
-import { useCart } from "~/lib/query"; // Import Hook React Query
+import { useAuthStore } from "~/lib/stores";
+import { useCart } from "~/lib/query";
 import { ordersApi, paymentsApi } from "~/lib/services";
 import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
@@ -46,8 +46,6 @@ const paymentMethods = [
 export default function CheckoutPage() {
   const navigate = useNavigate();
   
-  // SỬA ĐỔI: Sử dụng hook useCart từ React Query thay vì store
-  // isLoading giúp tránh render màn hình trống khi đang fetch
   const { data: cart, isLoading: isCartLoading } = useCart();
   
   const { user } = useAuthStore();
@@ -67,7 +65,7 @@ export default function CheckoutPage() {
       phone: user?.phone || "",
       address: "",
       city: "",
-      district: "",
+      // district removed
       ward: "",
       note: "",
       payment_method: "cod",
@@ -76,8 +74,6 @@ export default function CheckoutPage() {
   });
 
   const selectedPayment = watch("payment_method");
-
-  // SỬA ĐỔI: Đã xóa useEffect fetchCart() vì không còn cần thiết với React Query
 
   // Pre-fill user data
   useEffect(() => {
@@ -92,15 +88,18 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create order with shipping address
+      // Step 1: Create order with shipping address (New Mapping)
       const orderData = {
         shipping_name: data.full_name,
         shipping_phone: data.phone,
-        shipping_address: data.address,
-        shipping_city: data.city,
-        shipping_state: data.district,
+        
+        // Mapping mới cho địa chỉ
+        shipping_address: data.address, // Số nhà, tên đường
+        shipping_province: data.city,   // Tỉnh / Thành phố
+        shipping_ward: data.ward || "", // Phường / Xã
         shipping_country: "Vietnam",
-        shipping_postal_code: data.ward || "",
+        shipping_postal_code: "",       // Để trống hoặc xử lý nếu cần
+        
         customer_note: data.note || "",
         coupon_code: data.coupon_code || undefined,
         payment_method: data.payment_method,
@@ -257,7 +256,7 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
-                  {/* City */}
+                  {/* City (Province) */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Tỉnh/Thành phố <span className="text-red-500">*</span>
@@ -272,18 +271,18 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
-                  {/* District */}
+                  {/* Ward (New Field) */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Quận/Huyện <span className="text-red-500">*</span>
+                      Phường/Xã <span className="text-red-500">*</span>
                     </label>
                     <input
-                      {...register("district")}
-                      placeholder="Quận 1"
-                      className={inputClasses(!!errors.district)}
+                      {...register("ward")}
+                      placeholder="Phường Bến Nghé"
+                      className={inputClasses(!!errors.ward)}
                     />
-                    {errors.district && (
-                      <p className="mt-1 text-xs text-red-500">{errors.district.message}</p>
+                    {errors.ward && (
+                      <p className="mt-1 text-xs text-red-500">{errors.ward.message}</p>
                     )}
                   </div>
 
@@ -294,7 +293,7 @@ export default function CheckoutPage() {
                     </label>
                     <input
                       {...register("address")}
-                      placeholder="Số nhà, tên đường, phường/xã..."
+                      placeholder="Số nhà, tên đường..."
                       className={inputClasses(!!errors.address)}
                     />
                     {errors.address && (

@@ -291,22 +291,26 @@ export const ordersApi = {
     return response.data;
   },
 
+  // --- CẬP NHẬT: Thay đổi field khớp với Backend mới ---
   createOrder: async (data: {
     shipping_name: string;
     shipping_phone: string;
     shipping_address: string;
-    shipping_city: string;
-    shipping_state: string;
+    shipping_province: string; // Đã đổi từ city
+    shipping_ward: string;     // Đã đổi từ state (dùng cho Phường/Xã)
     shipping_country?: string;
     shipping_postal_code?: string;
+    
+    // Billing fields (cập nhật tương tự)
     same_as_shipping?: boolean;
     billing_name?: string;
     billing_phone?: string;
     billing_address?: string;
-    billing_city?: string;
-    billing_state?: string;
+    billing_province?: string;
+    billing_ward?: string;
     billing_country?: string;
     billing_postal_code?: string;
+    
     coupon_code?: string;
     customer_note?: string;
     payment_method: "cod" | "vnpay" | "stripe";
@@ -314,6 +318,7 @@ export const ordersApi = {
     const response = await api.post("/orders/", data);
     return response.data;
   },
+  // ----------------------------------------------------
 
   cancelOrder: async (id: string) => {
     const response = await api.post(`/orders/${id}/cancel/`);
@@ -444,7 +449,6 @@ export const vendorsApi = {
     return response.data;
   },
 
-  // --- MỚI THÊM: Đăng ký & Lấy thông tin Vendor của User ---
   register: async (data: any) => {
     const response = await api.post("/vendors/register/", data);
     return response.data;
@@ -454,7 +458,6 @@ export const vendorsApi = {
     const response = await api.get("/vendors/me/");
     return response.data;
   }
-  // ---------------------------------------------------------
 };
 
 // Vendor Analytics APIs
