@@ -2,7 +2,11 @@ import axios, { AxiosError, type InternalAxiosRequestConfig, type AxiosInstance 
 import Cookies from "js-cookie";
 import type { AuthTokens, ApiErrorResponse } from "./types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+// API URL must be set in .env file (VITE_API_URL)
+const API_URL = import.meta.env.VITE_API_URL;
+if (!API_URL) {
+  throw new Error("VITE_API_URL environment variable is not set. Please check your .env file.");
+}
 
 // --- Cookie Keys ---
 // Note: access_token and refresh_token are now httpOnly cookies set by backend

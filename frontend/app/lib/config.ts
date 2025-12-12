@@ -33,7 +33,7 @@ export async function fetchSystemConfig(): Promise<SystemConfig> {
     return cachedConfig;
   }
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+  const API_URL = import.meta.env.VITE_API_URL;
   const response = await fetch(`${API_URL}/config/`, {
     credentials: 'include', // Send cookies
   });

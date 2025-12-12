@@ -124,7 +124,7 @@ export function getImageUrl(path: string | null | undefined): string {
   }
   
   // Relative path - prepend API URL
-  const baseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = import.meta.env.VITE_API_URL ?? "";
   // Remove /api/v1 suffix if present for media URLs
   const mediaBaseUrl = baseUrl.replace(/\/api\/v1\/?$/, "");
   
