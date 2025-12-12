@@ -47,6 +47,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   
   // SỬA ĐỔI: Sử dụng hook useCart từ React Query thay vì store
+  // isLoading giúp tránh render màn hình trống khi đang fetch
   const { data: cart, isLoading: isCartLoading } = useCart();
   
   const { user } = useAuthStore();
@@ -149,7 +150,7 @@ export default function CheckoutPage() {
   // Loading state
   if (isCartLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/50 dark:bg-[#050505]">
         <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
@@ -373,7 +374,7 @@ export default function CheckoutPage() {
                 </h2>
 
                 <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
-                  {cart.items.map((item) => (
+                  {cart.items.map((item: any) => (
                     <div key={item.id} className="flex gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-gray-100 dark:border-gray-800">
                         {item.product.primary_image ? (
