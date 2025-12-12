@@ -1,70 +1,117 @@
-import { AxiosError } from "axios";
+import axios, { AxiosError } from "axios";
 
-/**
- * Standard API error response from Django REST Framework
- */
+// =============================================================================
+// 1. TYPE DEFINITIONS
+// =============================================================================
+
+/** Mã lỗi tiêu chuẩn để xử lý logic trong code */
+export type ApiErrorCode =
+  | "authentication_failed" // 401
+  | "permission_denied"     // 403
+  | "not_found"            // 404
+  | "method_not_allowed"   // 405
+  | "validation_error"     // 400
+  | "throttled"            // 429
+  | "server_error"         // 5xx
+  | "timeout"              // ECONNABORTED
+  | "network_error"        // Network Error
+  | "cancelled"            // Request Cancelled
+  | "unknown";             // Others
+
+/** Cấu trúc response lỗi chuẩn từ Backend (DRF) */
 export interface ApiErrorResponse {
-  /** General error message */
   detail?: string;
-  /** Alternative error message field */
   message?: string;
-  /** Field-specific validation errors */
-  errors?: Record<string, string[]>;
-  /** Non-field errors array */
   non_field_errors?: string[];
-  /** HTTP status code text */
-  status_text?: string;
-  /** Error code for programmatic handling */
-  code?: string;
+  errors?: Record<string, string[]>; // Trường hợp bọc lỗi trong object 'errors'
+  [key: string]: any; // Để bắt các lỗi field nằm trực tiếp ở root (DRF mặc định)
 }
 
-/**
- * Specific error types for different scenarios
- */
-export type ApiErrorCode =
-  | "authentication_failed"
-  | "not_authenticated"
-  | "permission_denied"
-  | "not_found"
-  | "method_not_allowed"
-  | "validation_error"
-  | "throttled"
-  | "server_error"
-  | "network_error"
-  | "timeout"
-  | "unknown";
-
-/**
- * Typed API error that extends AxiosError with our error response
- */
-export type TypedApiError = AxiosError<ApiErrorResponse>;
-
-/**
- * Structured error object for use in components
- */
+/** Đối tượng lỗi đã được chuẩn hóa để sử dụng trong UI */
 export interface ParsedApiError {
-  /** Main error message to display */
   message: string;
-  /** HTTP status code */
   statusCode: number | null;
-  /** Error code for programmatic handling */
   code: ApiErrorCode;
-  /** Field-specific errors for form validation */
   fieldErrors: Record<string, string>;
-  /** Whether the error is a network/connectivity issue */
   isNetworkError: boolean;
-  /** Whether the error requires re-authentication */
   isAuthError: boolean;
-  /** Original error for logging */
   originalError: unknown;
 }
 
+// =============================================================================
+// 2. CONSTANTS
+// =============================================================================
+
+/** Map mã lỗi HTTP sang thông báo mặc định */
+const HTTP_STATUS_MESSAGES: Record<number, string> = {
+  400: "Dữ liệu không hợp lệ.",
+  401: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  403: "Bạn không có quyền thực hiện hành động này.",
+  404: "Không tìm thấy tài nguyên yêu cầu.",
+  405: "Phương thức không được phép.",
+  429: "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
+  500: "Lỗi máy chủ nội bộ.",
+  502: "Bad Gateway.",
+  503: "Dịch vụ không khả dụng.",
+  504: "Gateway Timeout.",
+};
+
+// =============================================================================
+// 3. CORE LOGIC
+// =============================================================================
+
 /**
- * Parse an API error into a structured format
+ * Trích xuất message và field errors từ data trả về
+ */
+function extractErrorData(data: ApiErrorResponse | null | undefined): {
+  message: string | null;
+  fieldErrors: Record<string, string>;
+} {
+  const result = { message: null as string | null, fieldErrors: {} as Record<string, string> };
+
+  if (!data || typeof data !== "object") return result;
+
+  // 1. Ưu tiên lấy message từ 'detail' (DRF mặc định) hoặc 'message'
+  if (data.detail) result.message = data.detail;
+  else if (data.message) result.message = data.message;
+  
+  // 2. Xử lý non_field_errors
+  else if (Array.isArray(data.non_field_errors) && data.non_field_errors.length > 0) {
+    result.message = data.non_field_errors[0];
+  }
+
+  // 3. Xử lý Field Errors
+  // Case A: Lỗi nằm trong key 'errors' (ví dụ: { errors: { email: [...] } })
+  const errorSource = data.errors || data; 
+
+  Object.entries(errorSource).forEach(([key, value]) => {
+    // Bỏ qua các key hệ thống
+    if (["detail", "message", "non_field_errors", "status_text", "code"].includes(key)) return;
+
+    // Nếu value là mảng chuỗi (DRF Standard: { email: ["Invalid"] })
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+      result.fieldErrors[key] = value[0];
+      // Nếu chưa có message chính, lấy lỗi của field đầu tiên làm message
+      if (!result.message) {
+        result.message = `${key}: ${value[0]}`; // Hoặc chỉ lấy value[0] tùy requirement
+      }
+    }
+    // Nếu value là chuỗi
+    else if (typeof value === "string") {
+      result.fieldErrors[key] = value;
+      if (!result.message) result.message = value;
+    }
+  });
+
+  return result;
+}
+
+/**
+ * Hàm chính: Parse mọi loại lỗi thành format chuẩn
  */
 export function parseApiError(error: unknown): ParsedApiError {
-  // Default error structure
-  const result: ParsedApiError = {
+  // 1. Khởi tạo giá trị mặc định
+  const parsed: ParsedApiError = {
     message: "Đã xảy ra lỗi không mong muốn",
     statusCode: null,
     code: "unknown",
@@ -74,146 +121,86 @@ export function parseApiError(error: unknown): ParsedApiError {
     originalError: error,
   };
 
-  // Not an Axios error
-  if (!(error instanceof AxiosError)) {
+  // 2. Nếu không phải Axios Error
+  if (!axios.isAxiosError(error)) {
     if (error instanceof Error) {
-      result.message = error.message;
+      parsed.message = error.message;
     }
-    return result;
+    return parsed;
   }
 
-  const axiosError = error as TypedApiError;
+  const axiosError = error as AxiosError<ApiErrorResponse>;
 
-  // Network error (no response)
+  // 3. Xử lý Network/Timeout (Không có response)
   if (!axiosError.response) {
+    parsed.isNetworkError = true;
     if (axiosError.code === "ECONNABORTED") {
-      result.message = "Yêu cầu quá thời gian chờ. Vui lòng thử lại.";
-      result.code = "timeout";
+      parsed.code = "timeout";
+      parsed.message = "Yêu cầu quá thời gian chờ. Vui lòng thử lại.";
+    } else if (axiosError.code === "ERR_CANCELED") {
+      parsed.code = "cancelled";
+      parsed.message = "Yêu cầu đã bị hủy.";
     } else {
-      result.message = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.";
-      result.code = "network_error";
+      parsed.code = "network_error";
+      parsed.message = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.";
     }
-    result.isNetworkError = true;
-    return result;
+    return parsed;
   }
 
+  // 4. Xử lý lỗi từ Server (Có response)
   const { status, data } = axiosError.response;
-  result.statusCode = status;
+  parsed.statusCode = status;
 
-  // Handle based on status code
-  switch (status) {
-    case 400:
-      result.code = "validation_error";
-      result.message = "Dữ liệu không hợp lệ";
+  // Xác định Code
+  if (status === 400) parsed.code = "validation_error";
+  else if (status === 401) parsed.code = "authentication_failed";
+  else if (status === 403) parsed.code = "permission_denied";
+  else if (status === 404) parsed.code = "not_found";
+  else if (status === 405) parsed.code = "method_not_allowed";
+  else if (status === 429) parsed.code = "throttled";
+  else if (status >= 500) parsed.code = "server_error";
 
-      // Extract field errors
-      if (data?.errors) {
-        for (const [field, messages] of Object.entries(data.errors)) {
-          if (Array.isArray(messages) && messages.length > 0) {
-            result.fieldErrors[field] = messages[0];
-          }
-        }
-        // Get first error message as main message
-        const firstField = Object.keys(data.errors)[0];
-        if (firstField && data.errors[firstField]?.[0]) {
-          result.message = data.errors[firstField][0];
-        }
-      }
+  // Xác định các flag
+  if (status === 401) parsed.isAuthError = true;
 
-      // Handle non_field_errors
-      if (data?.non_field_errors?.length) {
-        result.message = data.non_field_errors[0];
-      }
+  // Trích xuất dữ liệu lỗi chi tiết
+  const extracted = extractErrorData(data);
+  parsed.fieldErrors = extracted.fieldErrors;
 
-      // Use detail or message if available
-      if (data?.detail) {
-        result.message = data.detail;
-      } else if (data?.message) {
-        result.message = data.message;
-      }
-      break;
+  // Quyết định Message cuối cùng:
+  // Ưu tiên 1: Message từ server trả về
+  // Ưu tiên 2: Message mặc định theo HTTP Status Code
+  // Ưu tiên 3: Message mặc định "Lỗi {status}"
+  parsed.message = 
+    extracted.message || 
+    HTTP_STATUS_MESSAGES[status] || 
+    `Lỗi hệ thống (${status})`;
 
-    case 401:
-      result.code = "not_authenticated";
-      result.message = data?.detail || "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
-      result.isAuthError = true;
-      break;
-
-    case 403:
-      result.code = "permission_denied";
-      result.message = data?.detail || "Bạn không có quyền thực hiện hành động này.";
-      break;
-
-    case 404:
-      result.code = "not_found";
-      result.message = data?.detail || "Không tìm thấy tài nguyên yêu cầu.";
-      break;
-
-    case 405:
-      result.code = "method_not_allowed";
-      result.message = "Phương thức không được phép.";
-      break;
-
-    case 429:
-      result.code = "throttled";
-      result.message = data?.detail || "Quá nhiều yêu cầu. Vui lòng thử lại sau.";
-      break;
-
-    case 500:
-    case 502:
-    case 503:
-    case 504:
-      result.code = "server_error";
-      result.message = "Lỗi máy chủ. Vui lòng thử lại sau.";
-      break;
-
-    default:
-      result.message = data?.detail || data?.message || `Lỗi ${status}`;
-  }
-
-  return result;
+  return parsed;
 }
 
-/**
- * Get user-friendly error message from an API error
- */
+// =============================================================================
+// 4. UTILITIES (Helpers cho Component)
+// =============================================================================
+
+/** Lấy thông báo lỗi hiển thị cho user (Thay thế cho handleApiError cũ) */
 export function getErrorMessage(error: unknown): string {
   return parseApiError(error).message;
 }
 
-/**
- * Check if error is an authentication error that requires re-login
- */
-export function isAuthError(error: unknown): boolean {
-  return parseApiError(error).isAuthError;
-}
-
-/**
- * Check if error is a network connectivity error
- */
-export function isNetworkError(error: unknown): boolean {
-  return parseApiError(error).isNetworkError;
-}
-
-/**
- * Get field validation errors from an API error
- */
+/** Lấy danh sách lỗi validation cho Form */
 export function getFieldErrors(error: unknown): Record<string, string> {
   return parseApiError(error).fieldErrors;
 }
 
-/**
- * Type guard to check if an error is an Axios error with response
- */
-export function isApiError(error: unknown): error is TypedApiError {
-  return error instanceof AxiosError && error.response !== undefined;
+/** Kiểm tra xem có phải lỗi xác thực (401) để logout không */
+export function isAuthError(error: unknown): boolean {
+  return parseApiError(error).isAuthError;
 }
 
-/**
- * Extract status code from error
- */
+/** Lấy status code nhanh */
 export function getStatusCode(error: unknown): number | null {
-  if (isApiError(error)) {
+  if (axios.isAxiosError(error)) {
     return error.response?.status ?? null;
   }
   return null;
