@@ -3,54 +3,14 @@
  * 
  * Updated for new administrative structure effective 01/07/2025:
  * - Vietnam now has 34 provinces/cities (down from 63 after mergers)
- * - Ward (Phường/Xã) is directly under Province in new structure
- * - District field is optional (kept for backward compatibility with GHN API)
+ * - Backend validates against 34 provinces with legacy mapping
  * 
- * Uses GHN API for location dropdowns (API may still use old district structure
- * during transition period).
+ * Note: GHN API still uses old 63-province structure during transition.
+ * This form uses GHN API for accurate shipping fee calculation while
+ * displaying user-friendly province names.
  */
-import { useState, useEffect } from 'react';
-import { useProvinces, useWards } from '~/lib/hooks/useLocation';
-
-// 34 provinces/cities after 01/07/2025 merger
-const VIETNAM_PROVINCES_2025 = [
-  // 6 Municipalities
-  "Hà Nội",
-  "Hồ Chí Minh",
-  "Đà Nẵng",
-  "Hải Phòng",
-  "Cần Thơ",
-  "Huế",
-  // 28 Provinces
-  "An Giang",
-  "Bắc Ninh",
-  "Cà Mau",
-  "Cao Bằng",
-  "Điện Biên",
-  "Đắk Lắk",
-  "Đồng Nai",
-  "Đồng Tháp",
-  "Gia Lai",
-  "Hà Tĩnh",
-  "Hưng Yên",
-  "Khánh Hòa",
-  "Lai Châu",
-  "Lạng Sơn",
-  "Lào Cai",
-  "Lâm Đồng",
-  "Nghệ An",
-  "Ninh Bình",
-  "Phú Thọ",
-  "Quảng Ngãi",
-  "Quảng Ninh",
-  "Quảng Trị",
-  "Sơn La",
-  "Tây Ninh",
-  "Thái Nguyên",
-  "Thanh Hóa",
-  "Tuyên Quang",
-  "Vĩnh Long",
-];
+import { useState, useEffect, useCallback } from 'react';
+import { useProvinces, useDistricts, useWards } from '~/lib/hooks/useLocation';
 
 interface AddressFormData {
   full_name: string;
@@ -59,11 +19,10 @@ interface AddressFormData {
   apartment?: string;
   province: string;
   province_id: number | null;
+  district: string;
+  district_id: number | null;
   ward: string;
   ward_code: string;
-  // Legacy fields (optional)
-  district?: string;
-  district_id?: number | null;
 }
 
 interface VietnamAddressFormProps {
@@ -86,49 +45,69 @@ export function VietnamAddressForm({
     street_address: initialData?.street_address || '',
     apartment: initialData?.apartment || '',
     province: initialData?.province || '',
-    province_id: initialData?.province_id || null,
+    province_id: initialData?.province_id ?? null,
+    district: initialData?.district || '',
+    district_id: initialData?.district_id ?? null,
     ward: initialData?.ward || '',
     ward_code: initialData?.ward_code || '',
-    district: initialData?.district || '',
-    district_id: initialData?.district_id || null,
   });
 
-  // GHN API hooks - during transition, GHN may still use old district structure
-  const { data: ghnProvinces, isLoading: loadingProvinces } = useProvinces();
+  // GHN API hooks
+  const { data: provinces, isLoading: loadingProvinces } = useProvinces();
+  const { data: districts, isLoading: loadingDistricts } = useDistricts(formData.province_id);
   const { data: wards, isLoading: loadingWards } = useWards(formData.district_id);
+
+  // Memoized onChange callback
+  const handleChange = useCallback((newData: AddressFormData) => {
+    onChange(newData);
+  }, [onChange]);
 
   // Update parent when form data changes
   useEffect(() => {
-    onChange(formData);
-  }, [formData, onChange]);
+    handleChange(formData);
+  }, [formData, handleChange]);
 
-  // Handle province selection from static list
+  // Handle province selection
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const provinceName = e.target.value;
-    
-    // Find matching GHN province ID if available
-    const ghnProvince = ghnProvinces?.find(p => 
-      p.ProvinceName.toLowerCase().includes(provinceName.toLowerCase()) ||
-      provinceName.toLowerCase().includes(p.ProvinceName.toLowerCase())
-    );
+    const provinceId = Number(e.target.value) || null;
+    const province = provinces?.find(p => p.ProvinceID === provinceId);
     
     setFormData(prev => ({
       ...prev,
-      province: provinceName,
-      province_id: ghnProvince?.ProvinceID || null,
-      // Reset ward when province changes
-      ward: '',
-      ward_code: '',
+      province: province?.ProvinceName || '',
+      province_id: provinceId,
+      // Reset district and ward when province changes
       district: '',
       district_id: null,
+      ward: '',
+      ward_code: '',
     }));
   };
 
-  // Handle ward input (free text since structure is changing)
-  const handleWardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle district selection
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const districtId = Number(e.target.value) || null;
+    const district = districts?.find(d => d.DistrictID === districtId);
+    
     setFormData(prev => ({
       ...prev,
-      ward: e.target.value,
+      district: district?.DistrictName || '',
+      district_id: districtId,
+      // Reset ward when district changes
+      ward: '',
+      ward_code: '',
+    }));
+  };
+
+  // Handle ward selection
+  const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const wardCode = e.target.value;
+    const ward = wards?.find(w => w.WardCode === wardCode);
+    
+    setFormData(prev => ({
+      ...prev,
+      ward: ward?.WardName || '',
+      ward_code: wardCode,
     }));
   };
 
@@ -187,25 +166,26 @@ export function VietnamAddressForm({
         )}
       </div>
 
-      {/* Province - Using static list of 34 provinces */}
+      {/* Province */}
       <div>
         <label htmlFor="province" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Tỉnh/Thành phố <span className="text-red-500">*</span>
-          <span className="text-xs text-gray-500 ml-1">(34 tỉnh thành sau sáp nhập)</span>
         </label>
         <select
           id="province"
-          value={formData.province}
+          value={formData.province_id || ''}
           onChange={handleProvinceChange}
-          disabled={disabled}
+          disabled={disabled || loadingProvinces}
           className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white sm:text-sm ${
             errors.province ? 'border-red-500' : ''
           }`}
         >
-          <option value="">Chọn Tỉnh/Thành phố</option>
-          {VIETNAM_PROVINCES_2025.map(province => (
-            <option key={province} value={province}>
-              {province}
+          <option value="">
+            {loadingProvinces ? 'Đang tải...' : 'Chọn Tỉnh/Thành phố'}
+          </option>
+          {provinces?.map(province => (
+            <option key={province.ProvinceID} value={province.ProvinceID}>
+              {province.ProvinceName}
             </option>
           ))}
         </select>
@@ -214,23 +194,57 @@ export function VietnamAddressForm({
         )}
       </div>
 
-      {/* Ward - Free text input since structure is changing */}
+      {/* District */}
+      <div>
+        <label htmlFor="district" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Quận/Huyện <span className="text-red-500">*</span>
+        </label>
+        <select
+          id="district"
+          value={formData.district_id || ''}
+          onChange={handleDistrictChange}
+          disabled={disabled || !formData.province_id || loadingDistricts}
+          className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white sm:text-sm ${
+            errors.district ? 'border-red-500' : ''
+          }`}
+        >
+          <option value="">
+            {loadingDistricts ? 'Đang tải...' : formData.province_id ? 'Chọn Quận/Huyện' : 'Vui lòng chọn Tỉnh/TP trước'}
+          </option>
+          {districts?.map(district => (
+            <option key={district.DistrictID} value={district.DistrictID}>
+              {district.DistrictName}
+            </option>
+          ))}
+        </select>
+        {errors.district && (
+          <p className="mt-1 text-sm text-red-500">{errors.district}</p>
+        )}
+      </div>
+
+      {/* Ward */}
       <div>
         <label htmlFor="ward" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Phường/Xã <span className="text-red-500">*</span>
         </label>
-        <input
-          type="text"
+        <select
           id="ward"
-          name="ward"
-          value={formData.ward}
+          value={formData.ward_code || ''}
           onChange={handleWardChange}
-          disabled={disabled || !formData.province}
+          disabled={disabled || !formData.district_id || loadingWards}
           className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white sm:text-sm ${
             errors.ward ? 'border-red-500' : ''
           }`}
-          placeholder={formData.province ? 'Nhập tên Phường/Xã' : 'Vui lòng chọn Tỉnh/TP trước'}
-        />
+        >
+          <option value="">
+            {loadingWards ? 'Đang tải...' : formData.district_id ? 'Chọn Phường/Xã' : 'Vui lòng chọn Quận/Huyện trước'}
+          </option>
+          {wards?.map(ward => (
+            <option key={ward.WardCode} value={ward.WardCode}>
+              {ward.WardName}
+            </option>
+          ))}
+        </select>
         {errors.ward && (
           <p className="mt-1 text-sm text-red-500">{errors.ward}</p>
         )}
