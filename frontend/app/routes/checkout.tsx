@@ -15,6 +15,7 @@ import { formatCurrency, cn, parsePrice } from "~/lib/utils";
 import { Button } from "~/components/ui";
 import { getErrorMessage } from "~/lib/types/api-errors";
 import { getGuestCartId } from "~/lib/api";
+import { getConfig } from "~/lib/config";
 import type { CartItem } from "~/lib/types";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,20 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Fetch system config for shipping thresholds
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(500000);
+  const [defaultShippingCost, setDefaultShippingCost] = useState<number>(30000);
+  
+  useEffect(() => {
+    getConfig().then(config => {
+      setFreeShippingThreshold(config.shipping.free_shipping_threshold);
+      setDefaultShippingCost(config.shipping.default_shipping_cost);
+    }).catch(() => {
+      // Use defaults if config fetch fails
+      console.warn('Failed to fetch config, using defaults');
+    });
+  }, []);
 
   const {
     register,
@@ -270,10 +285,8 @@ export default function CheckoutPage() {
 
   const subtotal = parsePrice(cart.subtotal);
   
-  // Shipping cost calculation (matches backend settings)
-  const FREE_SHIPPING_THRESHOLD = 500000; // VND - should match backend FREE_SHIPPING_THRESHOLD
-  const DEFAULT_SHIPPING_COST = 30000; // VND - should match backend DEFAULT_SHIPPING_COST
-  const shippingCost = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_COST;
+  // Shipping cost calculation (synced from backend via API)
+  const shippingCost = subtotal >= freeShippingThreshold ? 0 : defaultShippingCost;
   // Include coupon discount in total calculation
   const total = subtotal + shippingCost - couponDiscount;
 
@@ -661,9 +674,9 @@ export default function CheckoutPage() {
                       </span>
                     )}
                   </div>
-                  {subtotal > 0 && subtotal < FREE_SHIPPING_THRESHOLD && (
+                  {subtotal > 0 && subtotal < freeShippingThreshold && (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Mua thêm {formatCurrency(FREE_SHIPPING_THRESHOLD - subtotal)} để được miễn phí vận chuyển
+                      Mua thêm {formatCurrency(freeShippingThreshold - subtotal)} để được miễn phí vận chuyển
                     </p>
                   )}
                   {couponDiscount > 0 && (

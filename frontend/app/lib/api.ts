@@ -2,16 +2,12 @@ import axios, { AxiosError, type InternalAxiosRequestConfig, type AxiosInstance 
 import Cookies from "js-cookie";
 import type { AuthTokens, ApiErrorResponse } from "./types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
 // --- Cookie Keys ---
 // Note: access_token and refresh_token are now httpOnly cookies set by backend
 // We can't read them directly in JS - browser sends them automatically
 const GUEST_CART_ID_KEY = "guestCartId";
-
-// Legacy keys for backward compatibility during migration
-const LEGACY_ACCESS_TOKEN_KEY = "accessToken";
-const LEGACY_REFRESH_TOKEN_KEY = "refreshToken";
 
 // --- Helper: Parse token from Server Request Cookie Header ---
 function parseCookieHeader(cookieHeader: string): Record<string, string> {
@@ -37,9 +33,7 @@ const HTTPONLY_REFRESH_TOKEN = "refresh_token";
 // Note: httpOnly cookies are automatically sent by browser, but we can read them
 // from the forwarded Cookie header in SSR loaders
 export function getTokenFromServerRequest(request: Request): string | null {
-  // First try httpOnly cookie name, then legacy name
-  return getValueFromRequest(request, HTTPONLY_ACCESS_TOKEN) 
-    || getValueFromRequest(request, LEGACY_ACCESS_TOKEN_KEY);
+  return getValueFromRequest(request, HTTPONLY_ACCESS_TOKEN);
 }
 
 export function getGuestCartIdFromServerRequest(request: Request): string | null {
@@ -56,23 +50,15 @@ export function createApi(request?: Request): AxiosInstance {
 
   instance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      let token: string | null = null;
-
       // Server Side: Get token from request header (for SSR loaders)
       if (request && typeof window === "undefined") {
-        token = getTokenFromServerRequest(request);
+        const token = getTokenFromServerRequest(request);
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
-      // Client Side: Browser automatically sends httpOnly cookies
-      // We can still check legacy non-httpOnly cookie for backward compat
-      else if (typeof window !== "undefined") {
-        token = Cookies.get(LEGACY_ACCESS_TOKEN_KEY) || null;
-      }
-
-      // If we found a token (from SSR or legacy), attach it
-      // For httpOnly client-side, browser sends cookie automatically
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      // Client Side: Browser automatically sends httpOnly cookies via withCredentials
+      // No need to manually attach Authorization header
       return config;
     },
     (error) => Promise.reject(error)
@@ -89,58 +75,34 @@ export const api = axios.create({
 });
 
 // --- Token Management ---
-// Now tokens are httpOnly cookies set by backend.
-// These functions handle cleanup of legacy tokens during migration.
-export function setTokens(tokens: AuthTokens | null) {
-  if (typeof window === "undefined") return;
-
-  // Clear legacy non-httpOnly tokens (cleanup during migration)
-  // Backend now sets httpOnly cookies directly in response
-  if (!tokens) {
-    Cookies.remove(LEGACY_ACCESS_TOKEN_KEY);
-    Cookies.remove(LEGACY_REFRESH_TOKEN_KEY);
-  }
-  // Note: We no longer set tokens here - backend sets httpOnly cookies
+// Tokens are httpOnly cookies set by backend - not accessible to JS
+// These are now no-op functions kept for API compatibility
+export function setTokens(_tokens: AuthTokens | null) {
+  // No-op: Backend manages httpOnly cookies directly
+  // We can't set or clear them from JS (security feature)
 }
 
 export function getTokens(): AuthTokens | null {
-  if (typeof window === "undefined") return null;
-
-  // Check legacy tokens (for backward compatibility during migration)
-  const access = Cookies.get(LEGACY_ACCESS_TOKEN_KEY);
-  const refresh = Cookies.get(LEGACY_REFRESH_TOKEN_KEY);
-
-  if (access && refresh) {
-    return { access, refresh };
-  }
-  
   // httpOnly tokens are not readable in JS - return null
   // Browser sends them automatically with withCredentials: true
   return null;
 }
 
-// Check if user is authenticated (has valid session)
+// Check if user is authenticated
 // Since tokens are httpOnly, we can't read them directly
-// This checks for legacy tokens or assumes authenticated if API returns 200
+// Caller should check API response or use a store/context
 export function isAuthenticated(): boolean {
-  return getTokens() !== null;
+  // Cannot determine from JS - caller should verify via API call
+  // or maintain authentication state in context/store
+  return false;
 }
 
 // --- Interceptors ---
 
-// Request: Attach Token (for legacy tokens during migration)
+// Request: No manual token attachment needed
+// httpOnly cookies are sent automatically by browser via withCredentials: true
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // For legacy non-httpOnly tokens, attach them manually
-    // httpOnly cookies are sent automatically by browser
-    if (typeof window !== "undefined") {
-      const tokens = getTokens();
-      if (tokens?.access) {
-        config.headers.Authorization = `Bearer ${tokens.access}`;
-      }
-    }
-    return config;
-  },
+  (config: InternalAxiosRequestConfig) => config,
   (error) => Promise.reject(error)
 );
 
@@ -201,9 +163,6 @@ api.interceptors.response.use(
         {},  // No body needed - refresh token is in httpOnly cookie
         { withCredentials: true }  // Important: send/receive cookies
       );
-
-      // Clear legacy tokens if any
-      setTokens(null);
       
       processQueue(null);
 
@@ -211,11 +170,10 @@ api.interceptors.response.use(
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError as AxiosError);
-      setTokens(null);  // Clear legacy tokens
       
       // Redirect to login if not already there
-      if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
-        window.location.href = "/login";
+      if (typeof window !== "undefined" && !window.location.pathname.includes("/auth/login")) {
+        window.location.href = "/auth/login";
       }
       
       return Promise.reject(refreshError);
