@@ -457,7 +457,14 @@ export const vendorsApi = {
   getCurrentVendor: async () => {
     const response = await api.get("/vendors/me/");
     return response.data;
-  }
+  },
+
+  updateVendor: async (data: FormData | Record<string, unknown>) => {
+    const response = await api.patch("/vendors/me/", data, {
+      headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {},
+    });
+    return response.data;
+  },
 };
 
 // Vendor Analytics APIs

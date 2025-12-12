@@ -4,6 +4,7 @@ import { ArrowLeft, Upload, Loader2, Package, Save, ImageIcon } from "lucide-rea
 import { Link } from "react-router";
 import { sellerProductsApi, productsApi } from "~/lib/services";
 import { Button, Input } from "~/components/ui";
+import { validateUploadFiles, FILE_UPLOAD } from "~/lib/constants";
 import toast from "react-hot-toast";
 
 export function meta() {
@@ -60,7 +61,20 @@ export default function NewProductPage() {
     const files = e.target.files;
     if (files) {
       const newFiles = Array.from(files);
-      // Validate file size/type if needed
+      
+      // Validate total image count
+      if (images.length + newFiles.length > FILE_UPLOAD.MAX_IMAGES_PER_PRODUCT) {
+        toast.error(`Chỉ được tải tối đa ${FILE_UPLOAD.MAX_IMAGES_PER_PRODUCT} ảnh`);
+        return;
+      }
+      
+      // Validate file size and type
+      const errors = validateUploadFiles(newFiles);
+      if (errors.length > 0) {
+        errors.forEach((err) => toast.error(err));
+        return;
+      }
+      
       const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
       setImages((prev) => [...prev, ...newFiles]);
       setImagePreviews((prev) => [...prev, ...newPreviews]);
