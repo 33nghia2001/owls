@@ -49,7 +49,8 @@ export async function clientLoader() {
   }
 }
 
-export function HydrateFallback() {
+// Loading skeleton (removed HydrateFallback for SPA mode compatibility)
+function SettingsLoadingSkeleton() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="animate-pulse space-y-6">

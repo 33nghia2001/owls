@@ -1,4 +1,4 @@
-import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { ChevronRight } from "lucide-react";
 import { productsApi } from "~/lib/services";
 import type { Category } from "~/lib/types";
@@ -10,13 +10,13 @@ export function meta() {
   ];
 }
 
-export async function loader({}: LoaderFunctionArgs) {
+export async function clientLoader({}: ClientLoaderFunctionArgs) {
   const categories = await productsApi.getCategories();
   return { categories };
 }
 
 export default function CategoriesPage() {
-  const { categories } = useLoaderData<typeof loader>();
+  const { categories } = useLoaderData<typeof clientLoader>();
 
   return (
     <div className="container mx-auto px-4 py-8">

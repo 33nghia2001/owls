@@ -1,4 +1,4 @@
-import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { ordersApi } from "~/lib/services";
 import type { Order } from "~/lib/types";
 import { formatDate, formatPrice } from "~/lib/utils";
@@ -10,7 +10,7 @@ export function meta() {
   ];
 }
 
-export async function loader({}: LoaderFunctionArgs) {
+export async function clientLoader({}: ClientLoaderFunctionArgs) {
   try {
     const data = await ordersApi.getOrders();
     return { orders: data.results || [] };
@@ -25,7 +25,7 @@ export async function loader({}: LoaderFunctionArgs) {
 }
 
 export default function OrdersPage() {
-  const { orders } = useLoaderData<typeof loader>();
+  const { orders } = useLoaderData<typeof clientLoader>();
 
   if (orders.length === 0) {
     return (

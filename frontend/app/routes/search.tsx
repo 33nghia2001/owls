@@ -6,7 +6,7 @@ import {
   useNavigation, 
   useSearchParams, 
   useSubmit, 
-  type LoaderFunctionArgs 
+  type ClientLoaderFunctionArgs 
 } from "react-router";
 import { 
   Search, 
@@ -33,7 +33,7 @@ export function meta({ data }: { data?: { q?: string } }) {
 }
 
 // --- LOADER ---
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function clientLoader({ request }: ClientLoaderFunctionArgs) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q") || "";
   const page = parseInt(url.searchParams.get("page") || "1");
@@ -65,7 +65,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 // --- COMPONENT ---
 export default function SearchPage() {
-  const { q, products, categories, params } = useLoaderData<typeof loader>();
+  const { q, products, categories, params } = useLoaderData<typeof clientLoader>();
   const navigation = useNavigation();
   const submit = useSubmit();
   const [searchParams] = useSearchParams();

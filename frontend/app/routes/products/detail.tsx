@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate, type LoaderFunctionArgs, type MetaFunction } from "react-router";
+import { Link, useLoaderData, useNavigate, type ClientLoaderFunctionArgs, type MetaFunction } from "react-router";
 import { Star, ShoppingCart, Heart, Truck, Shield } from "lucide-react";
 import { productsApi } from "~/lib/services";
 import type { Product, ProductVariant, ProductImage } from "~/lib/types";
@@ -8,7 +8,7 @@ import { useWishlistStore } from "~/lib/stores";
 import { useAddToCart } from "~/lib/query"; // Sử dụng Hook từ React Query
 import toast from "react-hot-toast";
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => {
+export const meta: MetaFunction<typeof clientLoader> = ({ data }) => {
   const product = data?.product;
   
   if (!product) {
@@ -87,14 +87,14 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   ];
 };
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const slug = params.slug as string;
   const product = await productsApi.getProduct(slug);
   return { product };
 }
 
 export default function ProductDetailPage() {
-  const { product } = useLoaderData<typeof loader>();
+  const { product } = useLoaderData<typeof clientLoader>();
   const navigate = useNavigate();
   
   // SỬA ĐỔI: Dùng Hook thay vì Store

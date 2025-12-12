@@ -1,10 +1,10 @@
-import { useLoaderData, type LoaderFunctionArgs, type MetaFunction } from "react-router";
+import { useLoaderData, type ClientLoaderFunctionArgs, type MetaFunction } from "react-router";
 import { vendorsApi } from "~/lib/services";
 import type { Vendor, ProductListItem } from "~/lib/types";
 import { ProductGrid } from "~/components/product/product-grid";
 import { generateMeta, generateOrganizationSchema } from "~/lib/seo";
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => {
+export const meta: MetaFunction<typeof clientLoader> = ({ data }) => {
   const vendor = data?.vendor;
 
   if (!vendor) {
@@ -48,7 +48,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   ];
 };
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const slug = params.slug as string;
   const vendor = await vendorsApi.getVendor(slug);
   const products = await vendorsApi.getVendorProducts(slug);
@@ -56,7 +56,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
 }
 
 export default function ShopDetailPage() {
-  const { vendor, products } = useLoaderData<typeof loader>();
+  const { vendor, products } = useLoaderData<typeof clientLoader>();
 
   return (
     <div className="container mx-auto px-4 py-8">

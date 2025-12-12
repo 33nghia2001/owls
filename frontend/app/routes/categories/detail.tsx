@@ -1,4 +1,4 @@
-import { Link, useLoaderData, useSearchParams, type LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, useSearchParams, type ClientLoaderFunctionArgs } from "react-router";
 import { useEffect, useState } from "react";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { productsApi } from "~/lib/services";
@@ -14,7 +14,7 @@ export function meta({ data }: { data?: { category?: Category } }) {
   ];
 }
 
-export async function loader({ params, request }: LoaderFunctionArgs) {
+export async function clientLoader({ params, request }: ClientLoaderFunctionArgs) {
   const url = new URL(request.url);
   const page = parseInt(url.searchParams.get("page") || "1");
   const ordering = url.searchParams.get("ordering") || "-created_at";
@@ -56,7 +56,7 @@ const sortOptions = [
 
 export default function CategoryDetailPage() {
   const { category, products, totalCount, categories, currentPage } =
-    useLoaderData<typeof loader>();
+    useLoaderData<typeof clientLoader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showFilters, setShowFilters] = useState(false);
 

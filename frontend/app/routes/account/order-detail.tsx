@@ -1,4 +1,4 @@
-import { useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { ordersApi } from "~/lib/services";
 import type { Order } from "~/lib/types";
 import { formatPrice, formatDate } from "~/lib/utils";
@@ -11,14 +11,14 @@ export function meta({ params }: { params: { id: string } }) {
   ];
 }
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
   const id = params.id as string;
   const order = await ordersApi.getOrder(id);
   return { order };
 }
 
 export default function OrderDetailPage() {
-  const { order } = useLoaderData<typeof loader>();
+  const { order } = useLoaderData<typeof clientLoader>();
 
   return (
     <div className="container mx-auto px-4 py-8">

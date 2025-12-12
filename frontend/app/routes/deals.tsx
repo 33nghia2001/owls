@@ -12,7 +12,7 @@ export function meta() {
   ];
 }
 
-export async function loader() {
+export async function clientLoader() {
   try {
     // Fetch products on sale
     const response = await productsApi.getProducts({ 
@@ -29,7 +29,7 @@ export async function loader() {
 }
 
 export default function DealsPage() {
-  const { products, count } = useLoaderData<typeof loader>();
+  const { products, count } = useLoaderData<typeof clientLoader>();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#050505]">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLoaderData, type LoaderFunctionArgs, Form } from "react-router";
+import { Link, useLoaderData, type ClientLoaderFunctionArgs, Form } from "react-router";
 import { 
   ChevronRight, Sparkles, TrendingUp, Clock, Tag, Truck, Shield, 
   RotateCcw, CreditCard, ArrowRight, Star, Zap, Search, Flame, Timer, Store
@@ -46,7 +46,7 @@ export function meta() {
   ];
 }
 
-export async function loader({}: LoaderFunctionArgs) {
+export async function clientLoader({}: ClientLoaderFunctionArgs) {
   try {
     const [featured, bestSellers, newArrivals, categories, vendorsData] = await Promise.all([
       productsApi.getFeaturedProducts(),
@@ -87,7 +87,7 @@ const staggerContainer = {
 };
 
 export default function Home() {
-  const { featured, bestSellers, newArrivals, categories, topVendors } = useLoaderData<typeof loader>();
+  const { featured, bestSellers, newArrivals, categories, topVendors } = useLoaderData<typeof clientLoader>();
   const { scrollY } = useScroll();
   
   // Flash Sale countdown - kết thúc vào 23:59 mỗi ngày

@@ -1,4 +1,4 @@
-import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { vendorsApi } from "~/lib/services";
 import type { Vendor } from "~/lib/types";
 
@@ -9,13 +9,13 @@ export function meta() {
   ];
 }
 
-export async function loader({}: LoaderFunctionArgs) {
+export async function clientLoader({}: ClientLoaderFunctionArgs) {
   const data = await vendorsApi.getVendors();
   return { vendors: data.results || [] };
 }
 
 export default function ShopsPage() {
-  const { vendors } = useLoaderData<typeof loader>();
+  const { vendors } = useLoaderData<typeof clientLoader>();
 
   return (
     <div className="container mx-auto px-4 py-8">

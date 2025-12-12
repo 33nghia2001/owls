@@ -1,7 +1,7 @@
 import { redirect } from "react-router";
 
 // Redirect /register to /auth/register for backward compatibility
-export function loader() {
+export function clientLoader() {
   return redirect("/auth/register", { status: 301 });
 }
 

@@ -98,8 +98,8 @@ export async function clientAction({ request }: ActionFunctionArgs) {
   }
 }
 
-// --- LOADING SKELETON ---
-export function HydrateFallback() {
+// --- LOADING SKELETON (used for Suspense fallback, not HydrateFallback in SPA mode) ---
+function AddressesLoadingSkeleton() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="flex justify-between items-center mb-6">
