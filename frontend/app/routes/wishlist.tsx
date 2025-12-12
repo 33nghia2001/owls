@@ -8,7 +8,8 @@ import {
   Package, 
   AlertCircle 
 } from "lucide-react";
-import { useWishlistStore, useCartStore } from "~/lib/stores";
+import { useWishlistStore } from "~/lib/stores";
+import { useAddToCart } from "~/lib/query"; // Use React Query hook instead of Store
 import { useEffect, useState } from "react";
 import { useWishlist } from "~/lib/query/hooks";
 import { productsApi } from "~/lib/services";
@@ -26,7 +27,7 @@ export function meta() {
 
 export default function WishlistPage() {
   const { items: wishlistIds, removeItem, clearWishlist } = useWishlistStore();
-  const { addToCart } = useCartStore();
+  const addToCartMutation = useAddToCart(); // Use React Query mutation
   const wishlistQuery = useWishlist();
 
   const [localProducts, setLocalProducts] = useState<any[]>([]);
@@ -50,9 +51,19 @@ export default function WishlistPage() {
     loadLocal();
   }, [wishlistIds]);
 
-  const handleAddToCart = async (product: any) => {
-    await addToCart(product.id, 1);
-    toast.success("Đã thêm vào giỏ hàng");
+  const handleAddToCart = (product: any) => {
+    // Use React Query mutation for consistent cart state management
+    addToCartMutation.mutate(
+      {
+        productId: product.id,
+        quantity: 1,
+        // Note: If product has variants, this should open a modal to select
+      },
+      {
+        onSuccess: () => toast.success("Đã thêm vào giỏ hàng"),
+        onError: () => toast.error("Lỗi khi thêm vào giỏ"),
+      }
+    );
   };
 
   const handleRemove = (id: string, name?: string) => {

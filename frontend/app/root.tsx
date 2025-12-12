@@ -5,6 +5,8 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
+  type LoaderFunctionArgs,
 } from "react-router";
 import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -16,6 +18,8 @@ import { useAuthStore, useWishlistStore } from "~/lib/stores";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
 import { queryClient } from "~/lib/query";
+import { createApi } from "~/lib/api";
+import type { User } from "~/lib/types";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -29,6 +33,21 @@ export const links = () => [
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
   },
 ];
+
+// --- Loader: Fetch user from server to prevent auth flicker ---
+export async function loader({ request }: LoaderFunctionArgs) {
+  const api = createApi(request);
+  let user: User | null = null;
+  
+  try {
+    const res = await api.get("/users/me/");
+    user = res.data;
+  } catch {
+    // Not logged in or token expired - that's OK
+  }
+  
+  return { user };
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -49,13 +68,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { checkAuth } = useAuthStore();
+  const { user } = useLoaderData<typeof loader>();
+  const { setUser, checkAuth } = useAuthStore();
 
   useEffect(() => {
-    checkAuth();
+    // Sync server-fetched user into store immediately to prevent flicker
+    if (user) {
+      setUser(user);
+    } else {
+      // Fallback: check auth client-side if server didn't return user
+      checkAuth();
+    }
     // Hydrate wishlist store to avoid SSR mismatch
     useWishlistStore.persist.rehydrate();
-  }, []);
+  }, [user, setUser, checkAuth]);
 
   return (
     <QueryClientProvider client={queryClient}>
