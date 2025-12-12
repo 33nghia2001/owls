@@ -3,7 +3,8 @@ import { Heart, ShoppingCart, Star, Eye, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ProductListItem } from "~/lib/types";
 import { formatCurrency, getImageUrl, cn, parsePrice } from "~/lib/utils";
-import { useCartStore, useWishlistStore } from "~/lib/stores";
+import { useWishlistStore } from "~/lib/stores";
+import { useAddToCart } from "~/lib/query"; // Sử dụng Hook thay vì Store
 import { useState } from "react";
 import { toast } from "~/components/ui/toast";
 
@@ -15,9 +16,11 @@ interface ProductCardProps {
 
 export function ProductCard({ product, className, index = 0 }: ProductCardProps) {
   const navigate = useNavigate();
-  const { addToCart } = useCartStore();
+  
+  // Thay thế useCartStore bằng Mutation Hook từ React Query
+  const addToCartMutation = useAddToCart();
+  
   const { isInWishlist, addItem, removeItem } = useWishlistStore();
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
   const inWishlist = isInWishlist(product.id);
@@ -43,23 +46,29 @@ export function ProductCard({ product, className, index = 0 }: ProductCardProps)
       return;
     }
     
-    setIsAddingToCart(true);
-    try {
-      await addToCart(product.id, 1);
-      toast.success({
-        title: "Đã thêm vào giỏ",
-        description: `${product.name} đã được thêm vào giỏ hàng`,
-      });
-    } catch (error) {
-      console.error("Failed to add to cart:", error);
-      toast.error({
-        title: "Lỗi",
-        description: "Không thể thêm sản phẩm vào giỏ hàng",
-      });
-    } finally {
-      setIsAddingToCart(false);
-    }
+    // Thực hiện Mutation thêm vào giỏ
+    addToCartMutation.mutate({
+      productId: product.id,
+      quantity: 1
+    }, {
+      onSuccess: () => {
+        toast.success({
+          title: "Đã thêm vào giỏ",
+          description: `${product.name} đã được thêm vào giỏ hàng`,
+        });
+      },
+      onError: (error) => {
+        console.error("Failed to add to cart:", error);
+        toast.error({
+          title: "Lỗi",
+          description: "Không thể thêm sản phẩm vào giỏ hàng",
+        });
+      }
+    });
   };
+
+  // Lấy trạng thái loading trực tiếp từ mutation
+  const isAddingToCart = addToCartMutation.isPending;
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();

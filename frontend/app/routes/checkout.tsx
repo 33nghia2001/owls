@@ -4,9 +4,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   MapPin, Phone, User, CreditCard, Truck, Package, 
-  AlertCircle, CheckCircle, ChevronRight, Tag, Loader2
+  AlertCircle, CheckCircle, ChevronRight, Tag
 } from "lucide-react";
-import { useCartStore, useAuthStore } from "~/lib/stores";
+import { useAuthStore } from "~/lib/stores"; // Bỏ useCartStore
+import { useCart } from "~/lib/query"; // Import useCart từ React Query
 import { ordersApi, paymentsApi } from "~/lib/services";
 import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
@@ -44,7 +45,10 @@ const paymentMethods = [
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, fetchCart } = useCartStore();
+  
+  // SỬA ĐỔI: Dùng Hook React Query thay vì Store
+  const { data: cart } = useCart();
+  
   const { user } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,9 +76,7 @@ export default function CheckoutPage() {
 
   const selectedPayment = watch("payment_method");
 
-  useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
+  // SỬA ĐỔI: Xóa useEffect fetchCart vì useCart tự động handle
 
   // Pre-fill user data
   useEffect(() => {
@@ -152,6 +154,7 @@ export default function CheckoutPage() {
         : "border-gray-200 dark:border-gray-800"
     );
 
+  // Validate cart data from Hook
   if (!cart || cart.items.length === 0) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-12 text-center">

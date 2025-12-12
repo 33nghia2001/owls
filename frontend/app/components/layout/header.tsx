@@ -19,7 +19,8 @@ import {
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "~/components/ui";
-import { useAuthStore, useCartStore, useUIStore, useWishlistStore } from "~/lib/stores";
+import { useAuthStore, useUIStore, useWishlistStore } from "~/lib/stores";
+import { useCart } from "~/lib/query"; // Sử dụng Hook React Query thay vì Store cũ
 import { cn } from "~/lib/utils";
 import {
   DropdownMenu,
@@ -37,7 +38,11 @@ export function Header() {
   
   // Stores
   const { user, isAuthenticated, logout } = useAuthStore();
-  const { itemCount } = useCartStore();
+  
+  // Cart Data from React Query (Real-time sync)
+  const { data: cart } = useCart();
+  const itemCount = cart?.item_count || 0;
+
   const { items: wishlistItems } = useWishlistStore();
   const { toggleMobileMenu, toggleCartSidebar, isMobileMenuOpen } = useUIStore();
 

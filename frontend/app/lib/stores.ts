@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { User, Cart } from "./types";
-import { authApi, cartApi } from "./services";
-import { getGuestCartId, getTokens } from "./api";
+import type { User } from "./types";
+import { authApi } from "./services";
+import { getTokens } from "./api";
 
 // --- Auth Store ---
 interface AuthState {
@@ -10,30 +10,27 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   setUser: (user: User | null) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, guestCartId?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   register: (data: any) => Promise<void>;
   checkAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
   isAuthenticated: false,
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-  login: async (email, password) => {
-    const guestCartId = getGuestCartId();
+  login: async (email, password, guestCartId) => {
     const { user } = await authApi.login(email, password, guestCartId);
     set({ user, isAuthenticated: true });
-    useCartStore.getState().fetchCart();
   },
 
   logout: async () => {
     await authApi.logout();
     set({ user: null, isAuthenticated: false });
-    useCartStore.getState().clearLocalCart();
   },
 
   register: async (data) => {
@@ -53,87 +50,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
-  },
-}));
-
-// --- Cart Store ---
-interface CartState {
-  cart: Cart | null;
-  isLoading: boolean;
-  itemCount: number;
-  fetchCart: () => Promise<void>;
-  addToCart: (productId: string, quantity: number, variantId?: string) => Promise<void>;
-  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
-  removeItem: (itemId: string) => Promise<void>;
-  clearCart: () => Promise<void>;
-  clearLocalCart: () => void;
-  applyCoupon: (code: string) => Promise<void>;
-  removeCoupon: () => Promise<void>;
-}
-
-export const useCartStore = create<CartState>((set, get) => ({
-  cart: null,
-  isLoading: false,
-  itemCount: 0,
-
-  fetchCart: async () => {
-    set({ isLoading: true });
-    try {
-      const guestCartId = getGuestCartId();
-      const cart = await cartApi.getCart(guestCartId);
-      set({
-        cart,
-        itemCount: cart?.item_count || 0,
-        isLoading: false,
-      });
-    } catch {
-      set({ cart: null, itemCount: 0, isLoading: false });
-    }
-  },
-
-  addToCart: async (productId, quantity, variantId) => {
-    const guestCartId = getGuestCartId();
-    await cartApi.addToCart({
-      product_id: productId,
-      variant_id: variantId,
-      quantity,
-      guest_cart_id: guestCartId,
-    });
-    await get().fetchCart();
-  },
-
-  updateQuantity: async (itemId, quantity) => {
-    const guestCartId = getGuestCartId();
-    await cartApi.updateCartItem(itemId, quantity, guestCartId);
-    await get().fetchCart();
-  },
-
-  removeItem: async (itemId) => {
-    const guestCartId = getGuestCartId();
-    await cartApi.removeCartItem(itemId, guestCartId);
-    await get().fetchCart();
-  },
-
-  clearCart: async () => {
-    const guestCartId = getGuestCartId();
-    await cartApi.clearCart(guestCartId);
-    set({ cart: null, itemCount: 0 });
-  },
-
-  clearLocalCart: () => {
-    set({ cart: null, itemCount: 0 });
-  },
-
-  applyCoupon: async (code) => {
-    const guestCartId = getGuestCartId();
-    await cartApi.applyCoupon(code, guestCartId);
-    await get().fetchCart();
-  },
-
-  removeCoupon: async () => {
-    const guestCartId = getGuestCartId();
-    await cartApi.removeCoupon(guestCartId);
-    await get().fetchCart();
   },
 }));
 
@@ -158,7 +74,7 @@ export const useUIStore = create<UIState>((set) => ({
   closeAll: () => set({ isMobileMenuOpen: false, isCartSidebarOpen: false, isSearchOpen: false }),
 }));
 
-// --- Wishlist Store (Fixed Hydration) ---
+// --- Wishlist Store ---
 interface WishlistState {
   items: string[];
   isLoading: boolean;
@@ -225,7 +141,7 @@ export const useWishlistStore = create<WishlistState>()(
       name: "wishlist-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ items: state.items }),
-      skipHydration: true, // QUAN TRỌNG: Tránh lỗi hydration mismatch
+      skipHydration: true,
     }
   )
 );

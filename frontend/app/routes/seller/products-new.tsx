@@ -1,10 +1,9 @@
-import { Form, useNavigate } from "react-router";
-import { useState } from "react";
-import { ArrowLeft, Upload, Loader2, Package, AlertCircle, Save, ImageIcon } from "lucide-react";
+import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Upload, Loader2, Package, Save, ImageIcon } from "lucide-react";
 import { Link } from "react-router";
-import { sellerProductsApi, inventoryApi, productsApi } from "~/lib/services";
+import { sellerProductsApi, productsApi } from "~/lib/services";
 import { Button, Input } from "~/components/ui";
-import { cn } from "~/lib/utils";
 import toast from "react-hot-toast";
 
 export function meta() {
@@ -42,17 +41,20 @@ export default function NewProductPage() {
   });
 
   // Load categories
-  useState(() => {
+  useEffect(() => {
     const loadCategories = async () => {
       try {
         const data = await productsApi.getCategoryTree();
-        setCategories(data.results || data || []);
+        // Xử lý dữ liệu trả về tùy theo format phân trang của API
+        const categoryList = Array.isArray(data) ? data : (data.results || []);
+        setCategories(categoryList);
       } catch (error) {
         console.error("Failed to load categories:", error);
+        toast.error("Không thể tải danh mục sản phẩm");
       }
     };
     loadCategories();
-  });
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -81,40 +83,36 @@ export default function NewProductPage() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Create product
       const productFormData = new FormData();
+      
+      // 1. Thông tin cơ bản
       productFormData.append("name", formData.name);
       productFormData.append("short_description", formData.short_description);
       productFormData.append("description", formData.description);
       productFormData.append("price", formData.price);
+      
       if (formData.compare_price) productFormData.append("compare_price", formData.compare_price);
       if (formData.sku) productFormData.append("sku", formData.sku);
       if (formData.category) productFormData.append("category", formData.category);
       
-      // Step 2: Upload images
+      // 2. Thông tin kho hàng (Gửi kèm để Backend xử lý atomic)
+      // Backend sẽ tự động tạo Inventory record dựa trên các field này
+      productFormData.append("initial_stock", formData.quantity || "0");
+      productFormData.append("low_stock_threshold", formData.low_stock_threshold || "10");
+      if (formData.warehouse_location) {
+        productFormData.append("warehouse_location", formData.warehouse_location);
+      }
+      
+      // 3. Hình ảnh
       images.forEach((img) => productFormData.append("uploaded_images", img));
 
-      const product = await sellerProductsApi.createProduct(productFormData);
-      
-      // Step 3: Create inventory (Optional but recommended)
-      const quantity = parseInt(formData.quantity) || 0;
-      if (quantity >= 0) {
-        try {
-          await inventoryApi.createInventory({
-            product: product.id,
-            quantity: quantity,
-            low_stock_threshold: parseInt(formData.low_stock_threshold) || 10,
-            warehouse_location: formData.warehouse_location || undefined,
-          });
-        } catch (invError) {
-          console.error("Inventory error", invError);
-          toast.error("Sản phẩm đã tạo nhưng lỗi cập nhật kho");
-        }
-      }
+      // Gọi API tạo sản phẩm (bao gồm cả inventory)
+      await sellerProductsApi.createProduct(productFormData);
 
       toast.success("Tạo sản phẩm thành công!");
       navigate("/seller/products");
     } catch (error: any) {
+      console.error("Create product error:", error);
       const message = error.response?.data?.detail || "Lỗi khi tạo sản phẩm";
       toast.error(message);
     } finally {
