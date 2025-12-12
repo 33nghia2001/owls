@@ -99,18 +99,28 @@ export function formatPrice(
  * - Absolute URLs (http/https) from cloud storage: return as-is
  * - Relative paths: prepend API URL
  * - null/undefined: return placeholder
+ * - Dangerous schemes (javascript:): return placeholder for security
  */
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return "/placeholder.jpg";
+  
+  // SECURITY: Block dangerous URL schemes to prevent XSS
+  const lowerPath = path.toLowerCase().trim();
+  if (lowerPath.startsWith("javascript:") || lowerPath.startsWith("vbscript:")) {
+    return "/placeholder.jpg";
+  }
   
   // Already an absolute URL (e.g., from Cloudinary, S3)
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
   
-  // Data URL (base64)
+  // Data URL (base64) - only allow image data URLs
   if (path.startsWith("data:")) {
-    return path;
+    if (path.startsWith("data:image/")) {
+      return path;
+    }
+    return "/placeholder.jpg";
   }
   
   // Relative path - prepend API URL

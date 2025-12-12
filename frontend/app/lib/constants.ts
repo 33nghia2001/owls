@@ -126,13 +126,27 @@ export function getPaymentStatusInfo(status: string) {
  * Returns error message if invalid, null if valid
  */
 export function validateUploadFile(file: File): string | null {
+  // Size check
   if (file.size > FILE_UPLOAD.MAX_SIZE) {
     return `File "${file.name}" vượt quá ${FILE_UPLOAD.MAX_SIZE_DISPLAY}`;
   }
   
+  // MIME type check
   const allowedTypes: readonly string[] = FILE_UPLOAD.ALLOWED_IMAGE_TYPES;
   if (!allowedTypes.includes(file.type)) {
     return `File "${file.name}" không phải định dạng ảnh hợp lệ (chỉ chấp nhận JPG, PNG, WebP, GIF)`;
+  }
+  
+  // Extension check (prevent MIME type spoofing)
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+  const allowedExtensions: readonly string[] = FILE_UPLOAD.ALLOWED_IMAGE_EXTENSIONS;
+  if (!allowedExtensions.includes(ext)) {
+    return `File "${file.name}" có phần mở rộng không hợp lệ`;
+  }
+  
+  // Filename length check (prevent path traversal issues)
+  if (file.name.length > 255) {
+    return `Tên file quá dài (tối đa 255 ký tự)`;
   }
   
   return null;
