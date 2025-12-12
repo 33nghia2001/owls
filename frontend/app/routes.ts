@@ -21,6 +21,7 @@ export default [
   route("cart", "routes/cart.tsx"),
   route("checkout", "routes/checkout.tsx"),
   route("checkout/success", "routes/checkout/success.tsx"),
+  route("checkout/cancel", "routes/checkout/cancel.tsx"),
   
   // User account routes
   route("account", "routes/account/index.tsx"),

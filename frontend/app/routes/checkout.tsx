@@ -4,7 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   MapPin, Phone, User, CreditCard, Truck, Package, 
-  AlertCircle, CheckCircle, ChevronRight, Tag, Loader2
+  AlertCircle, CheckCircle, ChevronRight, Tag, Loader2,
+  RefreshCw, AlertTriangle, X
 } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
 import { useCart } from "~/lib/query";
@@ -14,6 +15,8 @@ import { formatCurrency, cn, parsePrice } from "~/lib/utils";
 import { Button } from "~/components/ui";
 import { getErrorMessage } from "~/lib/types/api-errors";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 
 export function meta() {
   return [
@@ -43,14 +46,23 @@ const paymentMethods = [
   },
 ] as const;
 
+interface PriceChange {
+  product: string;
+  old_price: string;
+  new_price: string;
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
-  const { data: cart, isLoading: isCartLoading } = useCart();
+  const { data: cart, isLoading: isCartLoading, refetch: refetchCart } = useCart();
   
   const { user } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     register,
@@ -83,8 +95,25 @@ export default function CheckoutPage() {
     }
   }, [user, setValue]);
 
+  // Handle refresh cart after price changes
+  const handleRefreshCart = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchCart();
+      // Invalidate cart query to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ["cart"] });
+      setPriceChanges(null);
+      toast.success("Giỏ hàng đã được cập nhật với giá mới");
+    } catch (error) {
+      toast.error("Không thể cập nhật giỏ hàng. Vui lòng thử lại.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const onSubmit = async (data: CheckoutFormData) => {
     setServerError(null);
+    setPriceChanges(null);
     setIsProcessing(true);
 
     try {
@@ -128,6 +157,16 @@ export default function CheckoutPage() {
         }
       }
     } catch (error: unknown) {
+      // Handle 409 Conflict - Price changed
+      if (isAxiosError(error) && error.response?.status === 409) {
+        const responseData = error.response.data;
+        if (responseData?.price_changes) {
+          setPriceChanges(responseData.price_changes);
+          toast.error("Giá sản phẩm đã thay đổi. Vui lòng xem lại giỏ hàng.");
+          return;
+        }
+      }
+      
       const message = getErrorMessage(error);
       setServerError(message);
       toast.error(message);
@@ -177,6 +216,82 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-[#050505] py-8">
+      {/* Price Change Modal */}
+      {priceChanges && priceChanges.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Giá sản phẩm đã thay đổi
+                </h3>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  Một số sản phẩm trong giỏ hàng đã được cập nhật giá. Vui lòng xem lại trước khi tiếp tục.
+                </p>
+              </div>
+              <button
+                onClick={() => setPriceChanges(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 max-h-60 space-y-3 overflow-y-auto">
+              {priceChanges.map((change, index) => (
+                <div
+                  key={index}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <p className="font-medium text-gray-900 dark:text-gray-100">
+                    {change.product}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2 text-sm">
+                    <span className="text-gray-500 line-through">
+                      {formatCurrency(parsePrice(change.old_price))}
+                    </span>
+                    <ChevronRight className="h-3 w-3 text-gray-400" />
+                    <span className="font-semibold text-orange-500">
+                      {formatCurrency(parsePrice(change.new_price))}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => navigate("/cart")}
+              >
+                Xem giỏ hàng
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleRefreshCart}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang cập nhật...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Cập nhật giá
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4">
         {/* Progress Steps */}
         <div className="mb-8 flex items-center justify-center gap-2 text-sm">

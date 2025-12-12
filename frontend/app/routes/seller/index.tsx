@@ -1,9 +1,10 @@
 import { Link, useLoaderData } from "react-router";
-import { Package, ShoppingBag, DollarSign, Star, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, Star, Loader2, AlertTriangle, CheckCircle, Clock, Mail, HelpCircle } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
 import { vendorAnalyticsApi, authApi, vendorsApi } from "~/lib/services";
 import { formatCurrency } from "~/lib/utils";
 import { useEffect, useState } from "react";
+import { Button } from "~/components/ui";
 
 export function meta() {
   return [
@@ -65,23 +66,114 @@ export default function SellerDashboardPage() {
   if (!user.is_vendor) {
     // 1.1: Đã đăng ký nhưng đang chờ duyệt
     if (vendorProfile && vendorProfile.status === 'pending') {
+      const registeredDate = vendorProfile.created_at 
+        ? new Date(vendorProfile.created_at).toLocaleDateString('vi-VN', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : null;
+
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 dark:bg-[#050505]">
-          <div className="max-w-md text-center rounded-2xl bg-white p-8 shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
-              <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="min-h-screen bg-gray-50 py-12 dark:bg-[#050505]">
+          <div className="container mx-auto max-w-2xl px-4">
+            {/* Main Card */}
+            <div className="rounded-2xl bg-white p-8 shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+              <div className="text-center">
+                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+                  <Clock className="h-10 w-10 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+                  Hồ sơ đang chờ duyệt
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Cảm ơn bạn đã đăng ký bán hàng trên OWLS!
+                </p>
+              </div>
+
+              {/* Shop Info */}
+              <div className="mt-8 rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                    <ShoppingBag className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {vendorProfile.shop_name}
+                    </p>
+                    {registeredDate && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Đăng ký lúc: {registeredDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="mt-8 space-y-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Quy trình xét duyệt</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">Gửi đơn đăng ký</p>
+                      <p className="text-sm text-gray-500">Hoàn tất</p>
+                    </div>
+                  </div>
+                  <div className="ml-4 h-6 w-px bg-gray-200 dark:bg-gray-700" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">Xem xét hồ sơ</p>
+                      <p className="text-sm text-gray-500">Đang xử lý (1-3 ngày làm việc)</p>
+                    </div>
+                  </div>
+                  <div className="ml-4 h-6 w-px bg-gray-200 dark:bg-gray-700" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-400">Kích hoạt cửa hàng</p>
+                      <p className="text-sm text-gray-400">Chờ hoàn tất bước 2</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Help Section */}
+              <div className="mt-8 rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/30 dark:bg-blue-900/10">
+                <div className="flex gap-3">
+                  <HelpCircle className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                  <div>
+                    <p className="font-medium text-blue-900 dark:text-blue-100">Cần hỗ trợ?</p>
+                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                      Nếu hồ sơ của bạn chưa được duyệt sau 3 ngày, vui lòng liên hệ:{" "}
+                      <a href="mailto:support@owls.vn" className="font-medium underline">
+                        support@owls.vn
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-8 flex items-center justify-center gap-4">
+                <Link to="/">
+                  <Button variant="outline">Về trang chủ</Button>
+                </Link>
+                <Link to="/account">
+                  <Button variant="outline">Tài khoản của tôi</Button>
+                </Link>
+              </div>
             </div>
-            <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
-              Hồ sơ đang chờ duyệt
-            </h2>
-            <p className="mb-6 text-gray-600 dark:text-gray-400">
-              Cảm ơn bạn đã đăng ký bán hàng. Đội ngũ OWLS đang xem xét hồ sơ của 
-              <span className="font-bold text-gray-900 dark:text-white"> {vendorProfile.shop_name}</span>.
-              <br />Quá trình này thường mất 1-3 ngày làm việc.
-            </p>
-            <Link to="/" className="text-orange-600 hover:underline">
-              Về trang chủ
-            </Link>
           </div>
         </div>
       );
@@ -90,20 +182,82 @@ export default function SellerDashboardPage() {
     // 1.2: Bị từ chối
     if (vendorProfile && vendorProfile.status === 'rejected') {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 dark:bg-[#050505]">
-          <div className="max-w-md text-center rounded-2xl bg-white p-8 shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
-              <AlertTriangle className="h-8 w-8" />
-            </div>
-            <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
-              Đăng ký bị từ chối
-            </h2>
-            <p className="mb-6 text-gray-600 dark:text-gray-400">
-              Rất tiếc, hồ sơ của bạn chưa đạt yêu cầu. Vui lòng liên hệ hỗ trợ hoặc đăng ký lại.
-            </p>
-            <div className="flex justify-center gap-4">
-              <Link to="/" className="text-gray-500 hover:text-gray-900">Về trang chủ</Link>
-              <Link to="/seller/register" className="text-orange-600 hover:underline font-medium">Đăng ký lại</Link>
+        <div className="min-h-screen bg-gray-50 py-12 dark:bg-[#050505]">
+          <div className="container mx-auto max-w-2xl px-4">
+            <div className="rounded-2xl bg-white p-8 shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+              <div className="text-center">
+                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                  <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+                  Đăng ký chưa được duyệt
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Rất tiếc, hồ sơ đăng ký của bạn chưa đạt yêu cầu tại thời điểm này.
+                </p>
+              </div>
+
+              {/* Shop Info */}
+              <div className="mt-8 rounded-xl bg-red-50 p-4 dark:bg-red-900/10">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                    <ShoppingBag className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {vendorProfile.shop_name}
+                    </p>
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      Trạng thái: Từ chối
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reasons & Next Steps */}
+              <div className="mt-8 space-y-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Bạn có thể</h3>
+                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-500">•</span>
+                    Kiểm tra lại thông tin và đăng ký mới với thông tin chính xác hơn
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-500">•</span>
+                    Liên hệ bộ phận hỗ trợ để biết thêm chi tiết về lý do từ chối
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-500">•</span>
+                    Bổ sung các giấy tờ cần thiết nếu được yêu cầu
+                  </li>
+                </ul>
+              </div>
+
+              {/* Help Section */}
+              <div className="mt-8 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex gap-3">
+                  <Mail className="h-5 w-5 flex-shrink-0 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Liên hệ hỗ trợ</p>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      Email:{" "}
+                      <a href="mailto:seller-support@owls.vn" className="text-orange-500 underline">
+                        seller-support@owls.vn
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <Link to="/seller/register">
+                  <Button className="w-full sm:w-auto">Đăng ký lại</Button>
+                </Link>
+                <Link to="/">
+                  <Button variant="outline" className="w-full sm:w-auto">Về trang chủ</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
