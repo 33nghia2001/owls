@@ -17,10 +17,16 @@ export interface User {
   is_vendor: boolean;
 }
 
+export interface AuthTokens {
+  access: string;
+  refresh: string;
+}
+
 export interface AuthResponse {
   access: string;
   refresh: string;
   user: User;
+  tokens: AuthTokens; // Thường API trả về cấu trúc này
 }
 
 export interface LoginCredentials {
@@ -34,6 +40,22 @@ export interface RegisterCredentials {
   first_name: string;
   last_name: string;
   phone?: string;
+}
+
+// ==========================================
+// Address Types (MỚI THÊM)
+// ==========================================
+
+export interface ShippingAddress {
+  id: string;
+  full_name: string;
+  phone: string;
+  address_line1: string;
+  province: string; // Tỉnh/Thành phố
+  ward: string;     // Phường/Xã
+  country: string;
+  postal_code: string;
+  is_default: boolean;
 }
 
 // ==========================================
