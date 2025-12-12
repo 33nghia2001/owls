@@ -65,16 +65,16 @@ export const authApi = {
   },
 
   forgotPassword: async (email: string) => {
-    const response = await api.post("/users/forgot-password/", { email });
+    const response = await api.post("/auth/forgot_password/", { email });
     return response.data;
   },
 
-  resetPassword: async (data: {
-    token: string;
-    password: string;
-    password_confirm: string;
-  }) => {
-    const response = await api.post("/users/reset-password/", data);
+  resetPassword: async (uid: string, token: string, new_password: string) => {
+    const response = await api.post("/auth/reset_password/", { 
+      uid, 
+      token, 
+      new_password 
+    });
     return response.data;
   },
 };

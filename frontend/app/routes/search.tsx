@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { 
   Form, 
   Link, 
@@ -14,7 +14,8 @@ import {
   SlidersHorizontal, 
   X, 
   ChevronDown, 
-  ArrowUpDown 
+  ArrowUpDown,
+  Loader2
 } from "lucide-react";
 import { productsApi } from "~/lib/services";
 import type { ProductListItem, Category, PaginatedResponse } from "~/lib/types";
@@ -68,21 +69,37 @@ export default function SearchPage() {
   const navigation = useNavigation();
   const submit = useSubmit();
   const [searchParams] = useSearchParams();
+  const formRef = useRef<HTMLFormElement>(null);
   
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const isSearching = navigation.state === "loading" || navigation.state === "submitting";
 
-  // Debounce submit for price inputs could be added here, keeping simple for now
-  const handleFilterChange = (formData: FormData) => {
-    // Retain the search query 'q' when filtering
-    if (q) formData.set("q", q);
-    submit(formData, { method: "get" });
-  };
+  // Debounced price filter submission for better UX
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handlePriceChange = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      if (formRef.current) {
+        submit(formRef.current, { method: "get", preventScrollReset: true });
+      }
+    }, 500); // 500ms debounce
+  }, [submit]);
+  
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const clearFilters = () => {
     const newParams = new URLSearchParams();
     if (q) newParams.set("q", q);
-    submit(newParams, { method: "get" });
+    submit(newParams, { method: "get", preventScrollReset: true });
   };
 
   const hasFilters = params.category_slug || params.min_price || params.max_price;
@@ -161,7 +178,7 @@ export default function SearchPage() {
                   )}
                 </div>
 
-                <Form method="get" className="space-y-6" id="filter-form">
+                <Form method="get" className="space-y-6" id="filter-form" ref={formRef}>
                   <input type="hidden" name="q" value={q} />
                   <input type="hidden" name="ordering" value={params.ordering} />
 
@@ -176,7 +193,7 @@ export default function SearchPage() {
                           value=""
                           defaultChecked={!params.category_slug}
                           className="text-orange-500 focus:ring-orange-500"
-                          onChange={(e) => submit(e.currentTarget.form)}
+                          onChange={(e) => submit(e.currentTarget.form, { preventScrollReset: true })}
                         />
                         <span className="text-gray-600 dark:text-gray-400">Tất cả</span>
                       </label>
@@ -188,7 +205,7 @@ export default function SearchPage() {
                             value={cat.slug}
                             defaultChecked={params.category_slug === cat.slug}
                             className="text-orange-500 focus:ring-orange-500"
-                            onChange={(e) => submit(e.currentTarget.form)}
+                            onChange={(e) => submit(e.currentTarget.form, { preventScrollReset: true })}
                           />
                           <span className="text-gray-600 group-hover:text-orange-500 dark:text-gray-400 transition-colors">
                             {cat.name}
@@ -210,6 +227,7 @@ export default function SearchPage() {
                         placeholder="Từ"
                         defaultValue={params.min_price ?? ""}
                         className="h-9 px-2 text-xs"
+                        onChange={handlePriceChange}
                       />
                       <span className="text-gray-400">-</span>
                       <Input
@@ -218,6 +236,7 @@ export default function SearchPage() {
                         placeholder="Đến"
                         defaultValue={params.max_price ?? ""}
                         className="h-9 px-2 text-xs"
+                        onChange={handlePriceChange}
                       />
                     </div>
                     <Button 
@@ -225,8 +244,16 @@ export default function SearchPage() {
                       variant="outline" 
                       size="sm" 
                       className="w-full text-xs font-normal"
+                      disabled={isSearching}
                     >
-                      Áp dụng
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          Đang lọc...
+                        </>
+                      ) : (
+                        "Áp dụng"
+                      )}
                     </Button>
                   </div>
                 </Form>

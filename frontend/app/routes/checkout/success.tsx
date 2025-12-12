@@ -1,9 +1,12 @@
 import { Link, useSearchParams } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { CheckCircle, Clock, XCircle, Loader2, Package, CreditCard } from "lucide-react";
 import { ordersApi } from "~/lib/services";
 import { formatCurrency, parsePrice } from "~/lib/utils";
 import { Button } from "~/components/ui";
+import { setGuestCartId } from "~/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "~/lib/stores";
 import type { Order } from "~/lib/types";
 
 export function meta() {
@@ -18,14 +21,33 @@ type OrderStatus = "loading" | "success" | "pending" | "failed";
 export default function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   
   const [status, setStatus] = useState<OrderStatus>("loading");
   const [order, setOrder] = useState<Order | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   
+  // Track if cart has been cleared to avoid duplicate clears
+  const cartClearedRef = useRef(false);
+  
   // Increased from 5 to 15 retries (30s total) to handle slow IPN callbacks
   // VNPay/Stripe webhooks can take 15-30s in some cases
   const maxRetries = 15;
+
+  // Clear cart on successful checkout (runs once)
+  useEffect(() => {
+    if (cartClearedRef.current) return;
+    cartClearedRef.current = true;
+    
+    // Clear guest cart cookie for guest users
+    if (!user) {
+      setGuestCartId(null);
+    }
+    
+    // Invalidate cart query to force refetch (will be empty after backend clears it)
+    queryClient.invalidateQueries({ queryKey: ["cart"] });
+  }, [user, queryClient]);
 
   useEffect(() => {
     if (!orderId) {

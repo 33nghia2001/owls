@@ -19,6 +19,7 @@ import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
 import { queryClient } from "~/lib/query";
 import { createApi, getGuestCartIdFromServerRequest } from "~/lib/api";
+import { NotificationListener } from "~/components/notifications";
 import type { User } from "~/lib/types";
 
 export const links = () => [
@@ -101,6 +102,7 @@ export default function App() {
           <Footer />
           <CartSidebar />
           <Toaster />
+          <NotificationListener />
         </div>
       </TooltipProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}

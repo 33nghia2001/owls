@@ -14,7 +14,6 @@ import {
   HelpCircle,
   Phone,
   Truck,
-  Bell
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,6 +21,7 @@ import { Button } from "~/components/ui";
 import { useAuthStore, useUIStore, useWishlistStore } from "~/lib/stores";
 import { useCart } from "~/lib/query"; // Sử dụng Hook React Query thay vì Store cũ
 import { cn } from "~/lib/utils";
+import { NotificationBell } from "~/components/notifications";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -187,6 +187,11 @@ export function Header() {
                 </span>
               )}
             </Link>
+
+            {/* Notifications */}
+            {isAuthenticated && (
+              <NotificationBell className="hidden sm:flex" />
+            )}
 
             {/* Cart Sidebar Trigger */}
             <button 

@@ -7,6 +7,7 @@ export default [
   route("auth/login", "routes/auth/login.tsx"),
   route("auth/register", "routes/auth/register.tsx"),
   route("auth/forgot-password", "routes/auth/forgot-password.tsx"),
+  route("auth/reset-password", "routes/auth/reset-password.tsx"),
   
   // Redirect old auth routes for backward compatibility
   route("login", "routes/auth/login-redirect.tsx"),
@@ -40,6 +41,9 @@ export default [
   
   // Wishlist
   route("wishlist", "routes/wishlist.tsx"),
+  
+  // Notifications
+  route("notifications", "routes/notifications.tsx"),
   
   // Vendor/Shop pages
   route("shops", "routes/shops/index.tsx"),
