@@ -25,9 +25,13 @@ interface UseNotificationsReturn {
 }
 
 // WebSocket URL - should match backend routing
-const getWebSocketUrl = () => {
+const getWebSocketUrl = (): string | null => {
+  // Skip WebSocket if not configured (e.g., Koyeb free tier doesn't support WS)
+  const host = import.meta.env.VITE_WS_HOST;
+  if (!host) {
+    return null;
+  }
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = import.meta.env.VITE_WS_HOST || 'localhost:8000';
   return `${wsProtocol}//${host}/ws/notifications/`;
 };
 
@@ -46,8 +50,13 @@ export function useNotifications(): UseNotificationsReturn {
       return;
     }
 
+    const wsUrl = getWebSocketUrl();
+    // Skip if WebSocket not configured
+    if (!wsUrl) {
+      return;
+    }
+
     try {
-      const wsUrl = getWebSocketUrl();
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
