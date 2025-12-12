@@ -44,11 +44,15 @@ export default function RegisterPage() {
   // Watch password for real-time validation UI
   const password = watch("password", "");
   
+  // Common passwords list (subset of Django's CommonPasswordValidator)
+  const commonPasswords = /^(password|123456|12345678|qwerty|abc123|monkey|master|dragon|111111|baseball|iloveyou|trustno1|sunshine|princess|welcome|admin|login)/i;
+  
   const passwordRequirements = [
     { text: "Ít nhất 8 ký tự", met: password.length >= 8 },
     { text: "Chứa chữ hoa (A-Z)", met: /[A-Z]/.test(password) },
     { text: "Chứa chữ thường (a-z)", met: /[a-z]/.test(password) },
     { text: "Chứa ít nhất 1 số", met: /\d/.test(password) },
+    { text: "Không phải mật khẩu phổ biến", met: password.length > 0 && !commonPasswords.test(password) },
   ];
 
   const onSubmit = async (data: RegisterFormData) => {

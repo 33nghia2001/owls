@@ -50,6 +50,10 @@ export const registerSchema = z
       .regex(
         passwordRegex,
         "Mật khẩu phải chứa chữ hoa, chữ thường và số"
+      )
+      .refine(
+        (val) => !/^(password|123456|12345678|qwerty|abc123|monkey|master|dragon|111111|baseball|iloveyou|trustno1|sunshine|princess|welcome|admin|login)/i.test(val),
+        "Mật khẩu quá phổ biến, vui lòng chọn mật khẩu khác"
       ),
     password_confirm: z.string().min(1, "Vui lòng xác nhận mật khẩu"),
     terms: z
