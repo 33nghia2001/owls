@@ -4,10 +4,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   MapPin, Phone, User, CreditCard, Truck, Package, 
-  AlertCircle, CheckCircle, ChevronRight, Tag
+  AlertCircle, CheckCircle, ChevronRight, Tag, Loader2
 } from "lucide-react";
-import { useAuthStore } from "~/lib/stores"; // Bỏ useCartStore
-import { useCart } from "~/lib/query"; // Import useCart từ React Query
+import { useAuthStore } from "~/lib/stores"; // Đã bỏ useCartStore
+import { useCart } from "~/lib/query"; // Import Hook React Query
 import { ordersApi, paymentsApi } from "~/lib/services";
 import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
@@ -46,8 +46,8 @@ const paymentMethods = [
 export default function CheckoutPage() {
   const navigate = useNavigate();
   
-  // SỬA ĐỔI: Dùng Hook React Query thay vì Store
-  const { data: cart } = useCart();
+  // SỬA ĐỔI: Sử dụng hook useCart từ React Query thay vì store
+  const { data: cart, isLoading: isCartLoading } = useCart();
   
   const { user } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export default function CheckoutPage() {
 
   const selectedPayment = watch("payment_method");
 
-  // SỬA ĐỔI: Xóa useEffect fetchCart vì useCart tự động handle
+  // SỬA ĐỔI: Đã xóa useEffect fetchCart() vì không còn cần thiết với React Query
 
   // Pre-fill user data
   useEffect(() => {
@@ -91,17 +91,15 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Step 1: Create order with shipping address (flat structure as backend expects)
+      // Step 1: Create order with shipping address
       const orderData = {
-        // Shipping address fields (flat)
         shipping_name: data.full_name,
         shipping_phone: data.phone,
         shipping_address: data.address,
         shipping_city: data.city,
-        shipping_state: data.district, // district maps to state in backend
+        shipping_state: data.district,
         shipping_country: "Vietnam",
         shipping_postal_code: data.ward || "",
-        // Optional fields
         customer_note: data.note || "",
         coupon_code: data.coupon_code || undefined,
         payment_method: data.payment_method,
@@ -112,25 +110,19 @@ export default function CheckoutPage() {
 
       // Step 2: Handle payment based on selected method
       if (data.payment_method === "cod") {
-        // COD: Order already created, redirect to success
         toast.success("Đặt hàng thành công!");
         navigate(`/checkout/success?order_id=${orderId}`);
       } else {
-        // VNPay or Stripe: Create payment and redirect
         const paymentResponse = await paymentsApi.createPayment({
           order_id: orderId,
-          method: data.payment_method, // "vnpay" or "stripe"
+          method: data.payment_method,
         });
 
-        // Redirect to payment gateway
         if (paymentResponse.payment_url) {
-          // VNPay returns payment_url
           window.location.href = paymentResponse.payment_url;
         } else if (paymentResponse.checkout_url) {
-          // Stripe returns checkout_url
           window.location.href = paymentResponse.checkout_url;
         } else {
-          // Fallback to success page if no redirect URL
           toast.success("Đặt hàng thành công!");
           navigate(`/checkout/success?order_id=${orderId}`);
         }
@@ -154,7 +146,16 @@ export default function CheckoutPage() {
         : "border-gray-200 dark:border-gray-800"
     );
 
-  // Validate cart data from Hook
+  // Loading state
+  if (isCartLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // Empty cart check
   if (!cart || cart.items.length === 0) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-12 text-center">
