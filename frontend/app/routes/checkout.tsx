@@ -8,7 +8,7 @@ import {
   RefreshCw, AlertTriangle, X, Mail
 } from "lucide-react";
 import { useAuthStore } from "~/lib/stores";
-import { useCart } from "~/lib/query";
+import { useCart, useApplyCoupon } from "~/lib/query";
 import { ordersApi, paymentsApi } from "~/lib/services";
 import { checkoutSchema, type CheckoutFormData } from "~/lib/validations";
 import { formatCurrency, cn, parsePrice } from "~/lib/utils";
@@ -59,9 +59,12 @@ export default function CheckoutPage() {
   const queryClient = useQueryClient();
   
   const { data: cart, isLoading: isCartLoading, refetch: refetchCart } = useCart();
+  const applyCouponMutation = useApplyCoupon();
   
   const { user } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -84,18 +87,45 @@ export default function CheckoutPage() {
       note: "",
       payment_method: "cod",
       coupon_code: "",
+      email: user?.email || "",
+      isLoggedIn: !!user,
     },
   });
 
   const selectedPayment = watch("payment_method");
 
-  // Pre-fill user data
+  // Pre-fill user data and update isLoggedIn status
   useEffect(() => {
+    setValue("isLoggedIn", !!user);
     if (user) {
       if (user.full_name) setValue("full_name", user.full_name);
       if (user.phone) setValue("phone", user.phone);
+      if (user.email) setValue("email", user.email);
     }
   }, [user, setValue]);
+
+  // Handle apply coupon
+  const handleApplyCoupon = async () => {
+    const couponCode = watch("coupon_code");
+    if (!couponCode?.trim()) {
+      toast.error("Vui lòng nhập mã giảm giá");
+      return;
+    }
+    
+    try {
+      const result = await applyCouponMutation.mutateAsync(couponCode.trim());
+      if (result.discount_amount) {
+        setCouponDiscount(parsePrice(result.discount_amount));
+        setAppliedCoupon(couponCode.trim());
+        toast.success(`Áp dụng mã giảm giá thành công! Giảm ${formatCurrency(parsePrice(result.discount_amount))}`);
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+      toast.error(message || "Mã giảm giá không hợp lệ");
+      setCouponDiscount(0);
+      setAppliedCoupon(null);
+    }
+  };
 
   // Handle refresh cart after price changes
   const handleRefreshCart = async () => {
@@ -244,7 +274,8 @@ export default function CheckoutPage() {
   const FREE_SHIPPING_THRESHOLD = 500000; // VND - should match backend FREE_SHIPPING_THRESHOLD
   const DEFAULT_SHIPPING_COST = 30000; // VND - should match backend DEFAULT_SHIPPING_COST
   const shippingCost = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_COST;
-  const total = subtotal + shippingCost;
+  // Include coupon discount in total calculation
+  const total = subtotal + shippingCost - couponDiscount;
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-[#050505] py-8">
@@ -580,11 +611,34 @@ export default function CheckoutPage() {
                       {...register("coupon_code")}
                       placeholder="Nhập mã giảm giá"
                       className={cn(inputClasses(false), "flex-1")}
+                      disabled={!!appliedCoupon}
                     />
-                    <Button type="button" variant="outline" size="sm">
-                      Áp dụng
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleApplyCoupon}
+                      disabled={applyCouponMutation.isPending || !!appliedCoupon}
+                    >
+                      {applyCouponMutation.isPending ? "Đang kiểm tra..." : appliedCoupon ? "Đã áp dụng" : "Áp dụng"}
                     </Button>
                   </div>
+                  {appliedCoupon && (
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-green-600 dark:text-green-400">Mã "{appliedCoupon}" - Giảm {formatCurrency(couponDiscount)}</span>
+                      <button 
+                        type="button"
+                        className="text-red-500 hover:text-red-600 text-xs"
+                        onClick={() => {
+                          setAppliedCoupon(null);
+                          setCouponDiscount(0);
+                          setValue("coupon_code", "");
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Summary */}
@@ -611,6 +665,14 @@ export default function CheckoutPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Mua thêm {formatCurrency(FREE_SHIPPING_THRESHOLD - subtotal)} để được miễn phí vận chuyển
                     </p>
+                  )}
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600 dark:text-green-400">Giảm giá</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium">
+                        -{formatCurrency(couponDiscount)}
+                      </span>
+                    </div>
                   )}
                 </div>
 

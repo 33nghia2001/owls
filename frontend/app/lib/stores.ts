@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "./types";
 import { authApi } from "./services";
 import { isAuthenticated as checkTokenAuth } from "./api";
+import type { RegisterFormData } from "./validations";
 
 // --- Auth Store ---
 interface AuthState {
@@ -12,7 +13,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   login: (email: string, password: string, guestCartId?: string | null) => Promise<void>;
   logout: () => Promise<void>;
-  register: (data: any) => Promise<void>;
+  register: (data: RegisterFormData) => Promise<void>;
   checkAuth: () => Promise<void>;
 }
 

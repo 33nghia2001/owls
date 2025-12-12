@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLoaderData, useSearchParams, Form, useSubmit } from "react-router";
+import { Link, useLoaderData, useSearchParams, Form, useSubmit, useRevalidator } from "react-router";
 import { 
   Plus, 
   Search, 
@@ -56,6 +56,7 @@ export default function SellerProductsPage() {
   const { products, pagination } = useLoaderData<typeof clientLoader>();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
+  const revalidator = useRevalidator();
   const { confirm, ConfirmDialog } = useConfirm();
   
   const currentStatus = searchParams.get("status") || "all";
@@ -71,8 +72,8 @@ export default function SellerProductsPage() {
       try {
         await sellerProductsApi.deleteProduct(slug);
         toast.success("Đã xóa sản phẩm");
-        // Reload page
-        window.location.reload(); 
+        // Revalidate data instead of full page reload
+        revalidator.revalidate();
       } catch (error) {
         toast.error("Không thể xóa sản phẩm");
       }

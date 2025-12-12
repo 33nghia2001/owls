@@ -84,6 +84,10 @@ export default function App() {
     }
     // Hydrate wishlist store to avoid SSR mismatch
     useWishlistStore.persist.rehydrate();
+    // Fetch wishlist from server if user is authenticated
+    if (user) {
+      useWishlistStore.getState().fetchWishlist();
+    }
   }, [user, setUser, checkAuth]);
 
   return (

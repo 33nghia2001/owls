@@ -174,6 +174,7 @@ export interface Product {
   review_count: number;
   sold_count: number;
   view_count: number;
+  stock_quantity?: number; // Available stock from inventory
   
   created_at: string;
   updated_at: string;

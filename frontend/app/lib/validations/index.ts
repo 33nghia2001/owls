@@ -114,17 +114,34 @@ export const shippingAddressSchema = z.object({
     .optional(),
 });
 
-export const checkoutSchema = shippingAddressSchema.extend({
+// Base checkout schema without refinement
+const baseCheckoutSchema = shippingAddressSchema.extend({
   payment_method: z
     .enum(["cod", "vnpay", "stripe"])
     .catch("cod"),
   coupon_code: z.string().optional(),
-  // Guest checkout email (optional - only required when not logged in)
+  // Guest checkout email - required when not logged in
   email: z
     .string()
     .email("Email không hợp lệ")
     .optional(),
+  // Hidden field to indicate if user is logged in (set by form)
+  isLoggedIn: z.boolean().optional(),
 });
+
+// Add refinement to require email for guest checkout
+export const checkoutSchema = baseCheckoutSchema.refine(
+  (data) => {
+    // If user is logged in, email is not required
+    if (data.isLoggedIn) return true;
+    // If user is not logged in, email is required
+    return !!data.email && data.email.length > 0;
+  },
+  {
+    message: "Email là bắt buộc cho khách mua hàng",
+    path: ["email"],
+  }
+);
 
 // ============================================
 // Profile Schemas

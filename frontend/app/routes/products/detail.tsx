@@ -112,6 +112,10 @@ export default function ProductDetailPage() {
 
   const price = selectedVariant?.price || product.price;
   const compare = selectedVariant?.compare_price || product.compare_price;
+  
+  // Get available stock quantity for selected variant or product
+  const availableStock = selectedVariant?.stock_quantity ?? product.stock_quantity ?? 999;
+  const isOutOfStock = availableStock <= 0;
 
   const handleAddToCart = () => {
     addToCartMutation.mutate({
@@ -166,6 +170,18 @@ export default function ProductDetailPage() {
             </span>
             <span>•</span>
             <span>{product.sold_count} đã bán</span>
+            {availableStock <= 10 && availableStock > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-orange-500 font-medium">Chỉ còn {availableStock} sản phẩm</span>
+              </>
+            )}
+            {isOutOfStock && (
+              <>
+                <span>•</span>
+                <span className="text-red-500 font-medium">Hết hàng</span>
+              </>
+            )}
           </div>
 
           <div className="mt-4 flex items-center gap-3">
@@ -208,24 +224,30 @@ export default function ProductDetailPage() {
             <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-800">
               <button
                 type="button"
-                className="px-3 py-2 text-lg"
+                className="px-3 py-2 text-lg disabled:opacity-50"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={isOutOfStock}
               >
                 -
               </button>
               <span className="w-12 text-center text-sm font-medium">{quantity}</span>
-              <button type="button" className="px-3 py-2 text-lg" onClick={() => setQuantity((q) => q + 1)}>
+              <button 
+                type="button" 
+                className="px-3 py-2 text-lg disabled:opacity-50" 
+                onClick={() => setQuantity((q) => Math.min(availableStock, q + 1))}
+                disabled={isOutOfStock || quantity >= availableStock}
+              >
                 +
               </button>
             </div>
             
             <button
               onClick={handleAddToCart}
-              disabled={addToCartMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-white transition hover:bg-orange-600 disabled:opacity-70"
+              disabled={addToCartMutation.isPending || isOutOfStock}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-white transition hover:bg-orange-600 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <ShoppingCart className="h-5 w-5" /> 
-              {addToCartMutation.isPending ? "Đang xử lý..." : "Thêm vào giỏ"}
+              {isOutOfStock ? "Hết hàng" : addToCartMutation.isPending ? "Đang xử lý..." : "Thêm vào giỏ"}
             </button>
             
             <button
