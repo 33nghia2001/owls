@@ -81,8 +81,8 @@
 ### 4-Pillar Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    OWLS E-COMMERCE                          │
+┌────────────────────────────────────────────────────────────┐
+│                    OWLS E-COMMERCE                         │
 ├─────────────┬─────────────┬─────────────┬──────────────────┤
 │    BASE     │  BUSINESS   │   CLIENT    │     GROWTH       │
 │             │             │             │                  │
@@ -100,7 +100,7 @@
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│    Views     │ ──▶ │   Services   │ ──▶ │    Models    │
+│    Views     │ ──▶│   Services   │ ──▶ │    Models    │
 │  (API Layer) │     │(Business Logic)    │  (Data Layer)│
 └──────────────┘     └──────────────┘     └──────────────┘
                             │
@@ -407,7 +407,8 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 👨‍💻 Tác giả
 
-**Nghia Nguyen** - [@33nghia2001](https://github.com/33nghia2001)
+**Hoang Trong Nghia** - [@33nghia2001](https://github.com/33nghia2001)
+**Hoang Trong Nghia** - [@nghiaht28102003](https://www.facebook.com/nghiaht28102003/)
 
 ---
 
