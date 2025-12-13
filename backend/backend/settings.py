@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # =============================================================================
 # ENVIRONMENT CONFIGURATION
@@ -382,17 +383,28 @@ if not JWT_PUBLIC_KEY:
 # SECURITY: Require RSA keys in production, fallback to HS256 only in DEBUG mode
 USE_RS256 = bool(JWT_PRIVATE_KEY and JWT_PUBLIC_KEY)
 
+# Allow HS256 fallback in production via explicit opt-in
+ALLOW_HS256_PRODUCTION = env.bool('ALLOW_HS256_PRODUCTION', default=False)
+
 if not DEBUG and not USE_RS256:
-    # In production, we strongly recommend using RS256 with RSA keys
-    # for better security. However, we allow HS256 as fallback with a warning.
-    import warnings
-    warnings.warn(
-        "SECURITY WARNING: JWT RSA keys not found. Falling back to HS256 with SECRET_KEY. "
-        "For production, please configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment "
-        "variables or place private.pem and public.pem files in the 'keys' directory. "
-        "RS256 provides better security for distributed systems.",
-        RuntimeWarning
-    )
+    if ALLOW_HS256_PRODUCTION:
+        # Explicit opt-in for HS256 in production (not recommended)
+        import warnings
+        warnings.warn(
+            "SECURITY WARNING: Using HS256 in production. This is NOT recommended. "
+            "Configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY for RS256.",
+            RuntimeWarning
+        )
+    else:
+        # SECURITY: Block server startup if RSA keys not configured in production
+        raise ImproperlyConfigured(
+            "CRITICAL SECURITY ERROR: JWT RSA keys are required in production. "
+            "Please configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment variables "
+            "or place private.pem and public.pem files in the 'keys' directory. "
+            "RS256 provides better security for distributed systems. "
+            "If you absolutely must use HS256 (NOT recommended), set "
+            "ALLOW_HS256_PRODUCTION=True in your environment."
+        )
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
@@ -541,6 +553,7 @@ else:
 #
 # For development, specify localhost origins explicitly.
 # For production, use CORS_ALLOWED_ORIGINS environment variable.
+# For dynamic subdomains, use CORS_ALLOWED_ORIGIN_REGEXES.
 
 if DEBUG:
     # Development origins - explicitly list allowed dev domains
@@ -563,6 +576,17 @@ else:
         'https://seller.owls.asia',
         'https://api.owls.asia',
     ])
+
+# CORS Regex patterns for dynamic subdomains
+# Use case: Multi-tenant with subdomains like store1.owls.asia, store2.owls.asia
+# Format: comma-separated list of regex patterns
+# Example: CORS_ALLOWED_ORIGIN_REGEXES=^https://.*\\.owls\\.asia$
+CORS_REGEX_PATTERNS = env.list('CORS_ALLOWED_ORIGIN_REGEXES', default=[])
+if CORS_REGEX_PATTERNS:
+    import re
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        re.compile(pattern) for pattern in CORS_REGEX_PATTERNS
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [

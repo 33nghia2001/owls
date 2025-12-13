@@ -256,6 +256,9 @@ class PaymentWebhookView(APIView):
         Verify MoMo HMAC-SHA256 signature.
         
         CRITICAL SECURITY: Prevents webhook forgery attacks.
+        
+        NOTE: MoMo signature is built from sorted parameters (alphabetically)
+        similar to VNPay. This implementation is more resilient to API changes.
         """
         import hashlib
         import hmac
@@ -267,27 +270,34 @@ class PaymentWebhookView(APIView):
         
         momo_config = getattr(settings, 'MOMO_CONFIG', {})
         secret_key = momo_config.get('SECRET_KEY', '')
+        access_key = momo_config.get('ACCESS_KEY', '')
         if not secret_key:
             import logging
             logging.getLogger(__name__).error("MOMO_CONFIG['SECRET_KEY'] not configured")
             return False
         
-        # Build raw signature string per MoMo spec
-        raw_signature = (
-            f"accessKey={momo_config.get('ACCESS_KEY', '')}"
-            f"&amount={payload.get('amount', '')}"
-            f"&extraData={payload.get('extraData', '')}"
-            f"&message={payload.get('message', '')}"
-            f"&orderId={payload.get('orderId', '')}"
-            f"&orderInfo={payload.get('orderInfo', '')}"
-            f"&orderType={payload.get('orderType', '')}"
-            f"&partnerCode={payload.get('partnerCode', '')}"
-            f"&payType={payload.get('payType', '')}"
-            f"&requestId={payload.get('requestId', '')}"
-            f"&responseTime={payload.get('responseTime', '')}"
-            f"&resultCode={payload.get('resultCode', '')}"
-            f"&transId={payload.get('transId', '')}"
-        )
+        # SECURITY FIX: Build signature dynamically from sorted keys
+        # This is more resilient to MoMo API changes (new/removed fields)
+        # MoMo's required fields for signature (exclude 'signature' itself)
+        MOMO_SIGNATURE_FIELDS = {
+            'accessKey', 'amount', 'extraData', 'message', 'orderId',
+            'orderInfo', 'orderType', 'partnerCode', 'payType',
+            'requestId', 'responseTime', 'resultCode', 'transId'
+        }
+        
+        # Build signature parts from payload, sorted alphabetically
+        signature_parts = []
+        
+        # AccessKey is special - it comes from config, not payload
+        if 'accessKey' in MOMO_SIGNATURE_FIELDS:
+            signature_parts.append(f"accessKey={access_key}")
+        
+        # Add other fields from payload in sorted order
+        for key in sorted(MOMO_SIGNATURE_FIELDS - {'accessKey'}):
+            value = payload.get(key, '')
+            signature_parts.append(f"{key}={value}")
+        
+        raw_signature = '&'.join(signature_parts)
         
         calculated_signature = hmac.new(
             secret_key.encode('utf-8'),

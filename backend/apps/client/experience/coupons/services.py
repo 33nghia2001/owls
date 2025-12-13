@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Dict, Any, List
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 import logging
 
@@ -230,9 +230,9 @@ class CouponService:
             is_active=True,
             starts_at__lte=now
         ).filter(
-            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
+            Q(expires_at__isnull=True) | Q(expires_at__gt=now)
         ).filter(
-            models.Q(usage_limit__isnull=True) | models.Q(times_used__lt=F('usage_limit'))
+            Q(usage_limit__isnull=True) | Q(times_used__lt=F('usage_limit'))
         )
         
         # Filter by minimum order if subtotal provided
@@ -254,7 +254,3 @@ class CouponService:
             ]
         
         return coupons
-
-
-# Import models for type hints
-from django.db import models

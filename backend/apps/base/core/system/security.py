@@ -25,6 +25,9 @@ def sanitize_html(text: str, allow_basic_tags: bool = False) -> str:
         
     Returns:
         str: Sanitized text safe for HTML rendering
+        
+    Raises:
+        ImportError: In production if bleach is not installed and allow_basic_tags=True
     """
     if not text:
         return text
@@ -49,8 +52,24 @@ def sanitize_html(text: str, allow_basic_tags: bool = False) -> str:
         )
         
     except ImportError:
-        # Fallback: escape all HTML if bleach not available
-        logger.warning("bleach library not installed, using basic HTML escape")
+        # SECURITY: Fallback behavior depends on allow_basic_tags
+        # - If allow_basic_tags=False: html.escape is safe (converts all to text)
+        # - If allow_basic_tags=True: We cannot safely allow some tags without bleach
+        if allow_basic_tags:
+            from django.conf import settings
+            if not getattr(settings, 'DEBUG', False):
+                # In production, refuse to allow any HTML without bleach
+                logger.error(
+                    "SECURITY: bleach library required for HTML sanitization with "
+                    "allow_basic_tags=True. Install with: pip install bleach"
+                )
+                # Fall back to escaping everything (safe but loses formatting)
+                return html.escape(text)
+            else:
+                logger.warning(
+                    "bleach not installed, HTML tags will be escaped. "
+                    "Install bleach for proper sanitization: pip install bleach"
+                )
         return html.escape(text)
 
 
@@ -141,7 +160,11 @@ def sanitize_text_field(text: str, max_length: int = None) -> str:
     return text
 
 
-def sanitize_for_logging(text: str, max_length: int = 200) -> str:
+def sanitize_for_logging(
+    text: str,
+    max_length: int = None,
+    context: str = None
+) -> str:
     """
     Sanitize text for safe logging.
     
@@ -150,13 +173,33 @@ def sanitize_for_logging(text: str, max_length: int = 200) -> str:
     
     Args:
         text: Text to sanitize for logging
-        max_length: Maximum length to log
+        max_length: Maximum length to log (default from settings or 200)
+        context: Optional context hint for length selection:
+                 - 'error': 500 chars for error messages
+                 - 'payment': 300 chars for payment info
+                 - 'filename': 100 chars for filenames
+                 - None: default 200 chars
         
     Returns:
         str: Log-safe text
     """
     if not text:
         return ''
+    
+    # Determine max length based on context if not specified
+    if max_length is None:
+        from django.conf import settings
+        default_lengths = getattr(settings, 'LOG_SANITIZE_LENGTHS', {})
+        
+        context_defaults = {
+            'error': 500,      # Error messages need more context
+            'payment': 300,    # Payment failure reasons
+            'filename': 100,   # Filenames are short
+            'stacktrace': 1000,  # Stack traces need full context
+            None: 200,         # Default
+        }
+        context_defaults.update(default_lengths)
+        max_length = context_defaults.get(context, context_defaults[None])
     
     # Remove newlines to prevent log injection
     text = text.replace('\n', ' ').replace('\r', ' ')
@@ -166,7 +209,7 @@ def sanitize_for_logging(text: str, max_length: int = 200) -> str:
     
     # Truncate
     if len(text) > max_length:
-        text = text[:max_length] + '...'
+        text = text[:max_length] + '...[truncated]'
     
     return text
 

@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Optional, Tuple
 from datetime import timedelta
 from django.db import transaction
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
@@ -326,7 +326,7 @@ class FraudDetectionService:
             result['issues'].append('First order with high amount')
         
         # Amount much higher than user average
-        avg_order = user.orders.aggregate(avg=models.Avg('total'))['avg']
+        avg_order = user.orders.aggregate(avg=Avg('total'))['avg']
         if avg_order and amount > avg_order * 5:
             result['risk_score'] += 15
             result['issues'].append('Amount 5x higher than user average')
@@ -434,7 +434,3 @@ class FraudDetectionService:
         
         logger.warning(f"IP blocked: {ip_address}, reason: {reason}")
         return blacklist
-
-
-# Import models.Avg for amount check
-from django.db.models import Avg
