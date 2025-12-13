@@ -23,15 +23,41 @@ logger = logging.getLogger(__name__)
     retry_kwargs={'max_retries': 3},
     name='users.send_password_reset_email'
 )
-def send_password_reset_email_task(self, email: str, user_name: str, reset_url: str):
+def send_password_reset_email_task(
+    self,
+    email: str,
+    user_name: str,
+    reset_url: str,
+    skip_if_not_exists: bool = False
+):
     """
     Send password reset email asynchronously.
+    
+    SECURITY: This task supports a 'skip_if_not_exists' flag for timing attack
+    prevention. When True, the task will silently skip sending if the email
+    doesn't exist, normalizing the I/O timing at the API level.
     
     Args:
         email: User's email address
         user_name: User's display name
         reset_url: Password reset URL with token
+        skip_if_not_exists: If True, silently skip if email not registered
     """
+    # SECURITY: Handle the "black hole" case for timing attack prevention
+    if skip_if_not_exists:
+        # Verify the email actually exists before sending
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if not User.objects.filter(email=email, is_active=True).exists():
+            # Silently skip - this is intentional for security
+            logger.debug(f"Password reset skipped for non-existent email (timing protection)")
+            return {'status': 'skipped', 'reason': 'email_not_found'}
+    
+    # Validate we have required data
+    if not reset_url or not user_name:
+        logger.warning(f"Password reset task called with missing data for {email}")
+        return {'status': 'skipped', 'reason': 'missing_data'}
+    
     try:
         subject = str(EmailTemplates.PASSWORD_RESET_SUBJECT)
         message = EmailTemplates.format_password_reset(user_name, reset_url)

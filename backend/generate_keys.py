@@ -47,13 +47,23 @@ def main():
     print("Generating RSA key pair (2048 bits)...")
     private_pem, public_pem = generate_rsa_keys()
     
-    # Save private key
+    # Save private key with restricted permissions
     private_key_path = keys_dir / 'private.pem'
     with open(private_key_path, 'wb') as f:
         f.write(private_pem)
-    print(f"✓ Private key saved to: {private_key_path}")
     
-    # Save public key
+    # SECURITY: Set restrictive permissions on private key (chmod 600)
+    # This ensures only the owner can read/write the file
+    try:
+        import stat
+        os.chmod(private_key_path, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+        print(f"✓ Private key saved to: {private_key_path} (permissions: 600)")
+    except OSError as e:
+        print(f"✓ Private key saved to: {private_key_path}")
+        print(f"  WARNING: Could not set file permissions: {e}")
+        print(f"  Please manually run: chmod 600 {private_key_path}")
+    
+    # Save public key (can be readable)
     public_key_path = keys_dir / 'public.pem'
     with open(public_key_path, 'wb') as f:
         f.write(public_pem)

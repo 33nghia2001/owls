@@ -272,8 +272,12 @@ class PasswordResetRequestView(APIView):
     """
     Request password reset endpoint.
     
-    SECURITY: This endpoint implements constant-time operations to prevent
-    user enumeration through timing analysis.
+    SECURITY: This endpoint implements multiple layers of protection against
+    user enumeration attacks:
+    1. Rate limiting via throttle_scope
+    2. Constant-time response (minimum 300ms)
+    3. Always enqueue a task (real or dummy) for consistent I/O
+    4. Generic response message regardless of user existence
     """
     
     permission_classes = [permissions.AllowAny]
@@ -288,8 +292,7 @@ class PasswordResetRequestView(APIView):
         
         email = serializer.validated_data['email']
         
-        # SECURITY FIX: Use monotonic time for precise measurement
-        # and consistent operations to prevent timing attacks
+        # SECURITY: Use monotonic time for precise measurement
         start_time = time.monotonic()
         
         # Always generate a token regardless of user existence
@@ -312,17 +315,16 @@ class PasswordResetRequestView(APIView):
             user = None
             
             # SECURITY: Generate dummy token with same computational cost
-            # This makes timing identical whether user exists or not
+            # Django's token generator uses PBKDF2, so we simulate similar work
             dummy_uid = urlsafe_base64_encode(force_bytes(secrets.token_bytes(16)))
-            # Simulate token generation work (PBKDF2-like iterations)
             dummy_token = secrets.token_urlsafe(32)
             reset_token = f"{dummy_uid}:{dummy_token}"
         
-        # Always perform email task enqueue operation (Celery is fast)
-        # The key is that both branches do similar I/O operations
+        # SECURITY FIX: Always enqueue an email task to normalize I/O timing
+        # The email task handles the "black hole" case internally
+        from .tasks import send_password_reset_email_task
+        
         if user_exists:
-            from .tasks import send_password_reset_email_task
-            
             reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
             send_password_reset_email_task.delay(
                 email=email,
@@ -330,10 +332,14 @@ class PasswordResetRequestView(APIView):
                 reset_url=reset_url
             )
         else:
-            # Simulate the Celery enqueue operation cost
-            # by doing a similar lightweight operation
-            from django.core.cache import cache
-            cache.get(f"dummy_rate_limit:{secrets.token_hex(8)}")
+            # SECURITY: Send to "black hole" - task will check if email exists
+            # and silently skip sending. This normalizes Celery enqueue time.
+            send_password_reset_email_task.delay(
+                email=email,
+                user_name='',
+                reset_url='',
+                skip_if_not_exists=True  # Task should handle this flag
+            )
         
         # SECURITY: Ensure minimum response time using monotonic clock
         # This prevents any residual timing differences

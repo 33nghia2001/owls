@@ -34,8 +34,9 @@ class FraudDetectionService:
     RISK_THRESHOLD_BLOCK = 80
     RISK_THRESHOLD_FLAG = 50
     
-    # Velocity limits (defaults, can be overridden by rules)
-    DEFAULT_VELOCITY_LIMITS = {
+    # Default velocity limits - can be overridden via settings or database
+    # These are fallbacks if no configuration is found
+    _DEFAULT_VELOCITY_LIMITS = {
         'orders_per_hour_user': 5,
         'orders_per_hour_ip': 10,
         'orders_per_day_user': 20,
@@ -44,8 +45,63 @@ class FraudDetectionService:
         'failed_payments_per_hour': 5,
     }
     
+    @classmethod
+    def get_velocity_limits(cls) -> dict:
+        """
+        Get velocity limits from cache/settings/database.
+        
+        Priority order:
+        1. Cache (for fast access)
+        2. Database (FraudConfig table if exists)
+        3. Django settings (FRAUD_VELOCITY_LIMITS)
+        4. Default hardcoded values
+        
+        This allows dynamic configuration without code deployment.
+        """
+        cache_key = 'fraud_velocity_limits'
+        limits = cache.get(cache_key)
+        
+        if limits is not None:
+            return limits
+        
+        # Try loading from Django settings first
+        limits = getattr(settings, 'FRAUD_VELOCITY_LIMITS', None)
+        
+        if limits is None:
+            # Try loading from database
+            try:
+                from apps.base.core.system.models import SystemConfig
+                config = SystemConfig.objects.filter(
+                    key='fraud_velocity_limits',
+                    is_active=True
+                ).first()
+                if config and config.value:
+                    import json
+                    limits = json.loads(config.value)
+                    # Convert amount strings to Decimal
+                    for key in limits:
+                        if 'amount' in key:
+                            limits[key] = Decimal(str(limits[key]))
+            except Exception:
+                pass  # Model doesn't exist or other error
+        
+        if limits is None:
+            # Fall back to defaults
+            limits = cls._DEFAULT_VELOCITY_LIMITS.copy()
+        
+        # Cache for 5 minutes (allows near-real-time updates)
+        cache.set(cache_key, limits, 300)
+        return limits
+    
+    @classmethod
+    def clear_limits_cache(cls):
+        """Clear cached velocity limits. Call after updating configuration."""
+        cache.delete('fraud_velocity_limits')
+    
     def __init__(self):
         self.rules = self._load_active_rules()
+        # Load velocity limits dynamically
+        self.velocity_limits = self.get_velocity_limits()
     
     def _load_active_rules(self) -> list:
         """Load and cache active fraud rules."""
@@ -223,14 +279,15 @@ class FraudDetectionService:
         ip_address: str,
         amount: Decimal
     ) -> dict:
-        """Check velocity limits."""
+        """Check velocity limits using dynamic configuration."""
         result = {'risk_score': 0, 'issues': []}
         now = timezone.now()
+        limits = self.velocity_limits  # Use dynamically loaded limits
         
         # Orders per hour by user
         hour_ago = now - timedelta(hours=1)
         user_orders_hour = user.orders.filter(created_at__gte=hour_ago).count()
-        limit = self.DEFAULT_VELOCITY_LIMITS['orders_per_hour_user']
+        limit = limits.get('orders_per_hour_user', 5)
         if user_orders_hour >= limit:
             result['risk_score'] += 30
             result['issues'].append(f'User exceeded {limit} orders/hour: {user_orders_hour}')
@@ -238,7 +295,7 @@ class FraudDetectionService:
         # Orders per day by user
         day_ago = now - timedelta(days=1)
         user_orders_day = user.orders.filter(created_at__gte=day_ago).count()
-        limit = self.DEFAULT_VELOCITY_LIMITS['orders_per_day_user']
+        limit = limits.get('orders_per_day_user', 20)
         if user_orders_day >= limit:
             result['risk_score'] += 20
             result['issues'].append(f'User exceeded {limit} orders/day: {user_orders_day}')
@@ -247,7 +304,7 @@ class FraudDetectionService:
         user_amount_hour = user.orders.filter(
             created_at__gte=hour_ago
         ).aggregate(total=Sum('total'))['total'] or Decimal('0')
-        limit = self.DEFAULT_VELOCITY_LIMITS['amount_per_hour_user']
+        limit = limits.get('amount_per_hour_user', Decimal('50000000'))
         if user_amount_hour + amount > limit:
             result['risk_score'] += 25
             result['issues'].append(f'User amount/hour exceeds {limit}')
@@ -259,7 +316,7 @@ class FraudDetectionService:
                 ip_address,
                 hour_ago
             )
-            limit = self.DEFAULT_VELOCITY_LIMITS['orders_per_hour_ip']
+            limit = limits.get('orders_per_hour_ip', 10)
             if ip_orders_hour >= limit:
                 result['risk_score'] += 40
                 result['issues'].append(f'IP exceeded {limit} orders/hour: {ip_orders_hour}')
@@ -300,21 +357,38 @@ class FraudDetectionService:
         identifier: str,
         amount: Decimal = Decimal('0')
     ):
-        """Increment velocity counter."""
+        """
+        Increment velocity counter atomically.
+        
+        SECURITY FIX: Uses F() expression to prevent race conditions.
+        Without atomic update, concurrent requests could read the same value,
+        increment it, and save - losing counts and allowing fraud bypass.
+        """
+        from django.db.models import F
+        
         now = timezone.now()
         # Use hourly windows
         window_start = now.replace(minute=0, second=0, microsecond=0)
         window_end = window_start + timedelta(hours=1)
         
-        counter, _ = VelocityCounter.objects.get_or_create(
+        # Use get_or_create with atomic update
+        counter, created = VelocityCounter.objects.get_or_create(
             counter_type=counter_type,
             identifier=identifier,
             window_start=window_start,
-            defaults={'window_end': window_end}
+            defaults={
+                'window_end': window_end,
+                'count': 1,
+                'total_amount': amount
+            }
         )
-        counter.count += 1
-        counter.total_amount += amount
-        counter.save(update_fields=['count', 'total_amount'])
+        
+        if not created:
+            # SECURITY: Atomic update using F() to prevent race conditions
+            VelocityCounter.objects.filter(pk=counter.pk).update(
+                count=F('count') + 1,
+                total_amount=F('total_amount') + amount
+            )
     
     def _check_amount(self, user, amount: Decimal) -> dict:
         """Check order amount patterns."""

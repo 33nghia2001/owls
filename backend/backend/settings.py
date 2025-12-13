@@ -380,31 +380,22 @@ if not JWT_PRIVATE_KEY:
 if not JWT_PUBLIC_KEY:
     JWT_PUBLIC_KEY = load_key_from_file(BASE_DIR / 'keys' / 'public.pem') or ''
 
-# SECURITY: Require RSA keys in production, fallback to HS256 only in DEBUG mode
+# SECURITY: Require RSA keys in production - NO FALLBACK TO HS256
+# HS256 requires sharing SECRET_KEY across services which is a security risk
+# in distributed systems. RS256 uses asymmetric keys (private for signing,
+# public for verification) which is much safer.
 USE_RS256 = bool(JWT_PRIVATE_KEY and JWT_PUBLIC_KEY)
 
-# Allow HS256 fallback in production via explicit opt-in
-ALLOW_HS256_PRODUCTION = env.bool('ALLOW_HS256_PRODUCTION', default=False)
-
 if not DEBUG and not USE_RS256:
-    if ALLOW_HS256_PRODUCTION:
-        # Explicit opt-in for HS256 in production (not recommended)
-        import warnings
-        warnings.warn(
-            "SECURITY WARNING: Using HS256 in production. This is NOT recommended. "
-            "Configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY for RS256.",
-            RuntimeWarning
-        )
-    else:
-        # SECURITY: Block server startup if RSA keys not configured in production
-        raise ImproperlyConfigured(
-            "CRITICAL SECURITY ERROR: JWT RSA keys are required in production. "
-            "Please configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment variables "
-            "or place private.pem and public.pem files in the 'keys' directory. "
-            "RS256 provides better security for distributed systems. "
-            "If you absolutely must use HS256 (NOT recommended), set "
-            "ALLOW_HS256_PRODUCTION=True in your environment."
-        )
+    # SECURITY: Block server startup if RSA keys not configured in production
+    # There is NO fallback to HS256 - this is intentional for security.
+    raise ImproperlyConfigured(
+        "CRITICAL SECURITY ERROR: JWT RSA keys are required in production. "
+        "Please configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment variables "
+        "or place private.pem and public.pem files in the 'keys' directory. "
+        "RS256 provides better security for distributed systems. "
+        "Generate keys using: python generate_keys.py"
+    )
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
