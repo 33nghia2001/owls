@@ -342,6 +342,12 @@ REST_FRAMEWORK = {
 # =============================================================================
 # JWT CONFIGURATION
 # =============================================================================
+# NOTE: Currently using HS256 (symmetric key). For microservices architecture,
+# consider switching to RS256 (asymmetric keys) for better security:
+# - RS256 allows services to verify tokens without knowing the private key
+# - Set ALGORITHM='RS256', SIGNING_KEY=<private_key>, VERIFYING_KEY=<public_key>
+# - Generate keys: openssl genrsa -out private.pem 2048
+#                  openssl rsa -in private.pem -pubout -out public.pem
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -349,8 +355,10 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     
+    # Algorithm: HS256 (symmetric) or RS256 (asymmetric for microservices)
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
+    # 'VERIFYING_KEY': None,  # Required for RS256
     
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
@@ -561,6 +569,30 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Celery Beat Schedule for periodic tasks
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Cleanup expired sessions daily at 3 AM
+    'cleanup-expired-sessions': {
+        'task': 'users.cleanup_expired_sessions',
+        'schedule': crontab(hour=3, minute=0),
+        'options': {'queue': 'maintenance'},
+    },
+    # Cleanup unverified users weekly on Sunday at 4 AM
+    'cleanup-unverified-users': {
+        'task': 'users.cleanup_unverified_users',
+        'schedule': crontab(hour=4, minute=0, day_of_week='sunday'),
+        'options': {'queue': 'maintenance'},
+    },
+    # Cleanup expired guest carts daily at 2 AM
+    'cleanup-expired-carts': {
+        'task': 'cart.cleanup_expired_carts',
+        'schedule': crontab(hour=2, minute=0),
+        'options': {'queue': 'maintenance'},
+    },
+}
 
 # =============================================================================
 # EMAIL CONFIGURATION

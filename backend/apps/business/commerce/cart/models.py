@@ -102,21 +102,32 @@ class Cart(TimeStampedModel):
         return f'Cart - {self.session_key}'
 
     def recalculate(self):
-        """Recalculate cart totals."""
-        items = self.items.select_related('product', 'variant')
+        """
+        Recalculate cart totals using database aggregation.
+        More efficient than Python loops for large carts.
+        """
+        from decimal import Decimal
+        from django.db.models import Sum
         
-        self.subtotal = sum(item.total_price for item in items)
-        self.item_count = sum(item.quantity for item in items)
+        # Use database aggregation instead of Python loops
+        aggregates = self.items.aggregate(
+            subtotal=Sum('total_price'),
+            item_count=Sum('quantity')
+        )
+        
+        self.subtotal = aggregates['subtotal'] or Decimal('0.00')
+        self.item_count = aggregates['item_count'] or 0
         
         # Apply coupon discount
         if self.coupon and self.coupon.is_valid:
             self.discount_amount = self.coupon.calculate_discount(self.subtotal)
         else:
-            self.discount_amount = 0
+            self.discount_amount = Decimal('0.00')
         
         # Calculate tax (10% VAT)
+        tax_rate = Decimal(str(settings.OWLS_CONFIG.get('TAX_RATE', 0.10)))
         taxable_amount = self.subtotal - self.discount_amount
-        self.tax_amount = taxable_amount * settings.OWLS_CONFIG.get('TAX_RATE', 0.10)
+        self.tax_amount = taxable_amount * tax_rate
         
         # Total
         self.total = self.subtotal - self.discount_amount + self.tax_amount + self.shipping_amount
@@ -134,22 +145,30 @@ class Cart(TimeStampedModel):
         self.recalculate()
 
     def merge_with(self, other_cart):
-        """Merge another cart into this one."""
-        for item in other_cart.items.all():
-            existing_item = self.items.filter(
-                product=item.product,
-                variant=item.variant
-            ).first()
-            
-            if existing_item:
-                existing_item.quantity += item.quantity
-                existing_item.save()
-            else:
-                item.cart = self
-                item.save()
+        """
+        Merge another cart into this one.
+        Uses transaction.atomic() to ensure data integrity.
+        """
+        from django.db import transaction
         
-        other_cart.delete()
-        self.recalculate()
+        with transaction.atomic():
+            for item in other_cart.items.select_related('product', 'variant'):
+                existing_item = self.items.filter(
+                    product=item.product,
+                    variant=item.variant
+                ).first()
+                
+                if existing_item:
+                    existing_item.quantity += item.quantity
+                    existing_item.total_price = existing_item.unit_price * existing_item.quantity
+                    existing_item.save(update_fields=['quantity', 'total_price', 'updated_at'])
+                else:
+                    item.cart = self
+                    item.save(update_fields=['cart', 'updated_at'])
+            
+            # Delete other cart only after successful merge
+            other_cart.delete()
+            self.recalculate()
 
 
 class CartItem(TimeStampedModel):

@@ -239,38 +239,16 @@ class PasswordResetRequestView(APIView):
         try:
             user = User.objects.get(email=email, is_active=True)
             
-            # Generate password reset token
-            from django.contrib.auth.tokens import default_token_generator
-            from django.utils.http import urlsafe_base64_encode
-            from django.utils.encoding import force_bytes
-            from django.core.mail import send_mail
-            from django.conf import settings
+            # Build reset URL using utility function
+            from .utils import build_password_reset_url
+            reset_url = build_password_reset_url(user)
             
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            
-            # Build reset URL
-            reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
-            
-            # Send email
-            send_mail(
-                subject='Đặt lại mật khẩu - Owls',
-                message=f'''Xin chào {user.first_name or user.email},
-
-Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản Owls.
-
-Nhấp vào liên kết sau để đặt lại mật khẩu:
-{reset_url}
-
-Liên kết này sẽ hết hạn sau 1 giờ.
-
-Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
-
-Trân trọng,
-Đội ngũ Owls''',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
+            # Send email asynchronously via Celery task
+            from .tasks import send_password_reset_email_task
+            send_password_reset_email_task.delay(
+                email=email,
+                user_name=user.first_name or user.email,
+                reset_url=reset_url
             )
             
         except User.DoesNotExist:

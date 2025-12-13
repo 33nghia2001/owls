@@ -15,14 +15,25 @@ from apps.base.core.system.models import TimeStampedModel, MetaDataModel
 
 
 def generate_order_number():
-    """Generate unique order number."""
-    import random
+    """
+    Generate cryptographically secure unique order number.
+    Uses secrets module instead of random for better entropy.
+    
+    Format: {PREFIX}{YYMMDD}{6-digit-alphanumeric}
+    Example: OWL231213A3B5C9
+    """
+    import secrets
     import string
     from datetime import datetime
     
     prefix = settings.OWLS_CONFIG.get('ORDER_ID_PREFIX', 'OWL')
     date_part = datetime.now().strftime('%y%m%d')
-    random_part = ''.join(random.choices(string.digits, k=6))
+    
+    # Use secrets module for cryptographically secure random
+    # Generate 6 alphanumeric characters (uppercase + digits)
+    alphabet = string.ascii_uppercase + string.digits
+    random_part = ''.join(secrets.choice(alphabet) for _ in range(6))
+    
     return f'{prefix}{date_part}{random_part}'
 
 
