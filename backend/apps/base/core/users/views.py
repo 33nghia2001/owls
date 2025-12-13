@@ -11,6 +11,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, inline_serializer
 from rest_framework import serializers as drf_serializers
@@ -38,7 +39,13 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
     throttle_scope = 'register'
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
+        """
+        Create user account atomically.
+        Wraps user creation + token generation in a transaction
+        to prevent orphaned accounts if token generation fails.
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()

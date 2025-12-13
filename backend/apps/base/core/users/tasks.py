@@ -11,6 +11,8 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 import logging
 
+from .email_templates import EmailTemplates
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,22 +33,8 @@ def send_password_reset_email_task(self, email: str, user_name: str, reset_url: 
         reset_url: Password reset URL with token
     """
     try:
-        subject = 'Đặt lại mật khẩu - Owls'
-        
-        # Plain text version
-        message = f'''Xin chào {user_name},
-
-Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản Owls.
-
-Nhấp vào liên kết sau để đặt lại mật khẩu:
-{reset_url}
-
-Liên kết này sẽ hết hạn sau 1 giờ.
-
-Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
-
-Trân trọng,
-Đội ngũ Owls'''
+        subject = str(EmailTemplates.PASSWORD_RESET_SUBJECT)
+        message = EmailTemplates.format_password_reset(user_name, reset_url)
 
         # Try to use HTML template if available
         html_message = None
@@ -93,18 +81,8 @@ def send_welcome_email_task(self, email: str, user_name: str):
         user_name: User's display name
     """
     try:
-        subject = f'Chào mừng bạn đến với {settings.SITE_NAME}!'
-        
-        message = f'''Xin chào {user_name},
-
-Cảm ơn bạn đã đăng ký tài khoản tại {settings.SITE_NAME}!
-
-Bạn có thể bắt đầu mua sắm ngay bây giờ với hàng ngàn sản phẩm chất lượng từ các nhà cung cấp uy tín.
-
-Nếu bạn có bất kỳ câu hỏi nào, đừng ngần ngại liên hệ với chúng tôi.
-
-Trân trọng,
-Đội ngũ {settings.SITE_NAME}'''
+        subject = EmailTemplates.get_welcome_subject()
+        message = EmailTemplates.format_welcome(user_name)
 
         send_mail(
             subject=subject,
@@ -139,17 +117,8 @@ def send_verification_email_task(self, email: str, user_name: str, verification_
         verification_url: Email verification URL
     """
     try:
-        subject = f'Xác nhận email - {settings.SITE_NAME}'
-        
-        message = f'''Xin chào {user_name},
-
-Vui lòng nhấp vào liên kết sau để xác nhận địa chỉ email của bạn:
-{verification_url}
-
-Liên kết này sẽ hết hạn sau 24 giờ.
-
-Trân trọng,
-Đội ngũ {settings.SITE_NAME}'''
+        subject = EmailTemplates.get_verification_subject()
+        message = EmailTemplates.format_verification(user_name, verification_url)
 
         send_mail(
             subject=subject,

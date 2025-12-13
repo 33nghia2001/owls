@@ -612,6 +612,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=2, minute=0),
         'options': {'queue': 'maintenance'},
     },
+    # Cancel unpaid orders every 5 minutes
+    'cancel-unpaid-orders': {
+        'task': 'orders.cancel_unpaid_orders',
+        'schedule': crontab(minute='*/5'),  # Every 5 minutes
+        'options': {'queue': 'maintenance'},
+    },
 }
 
 # =============================================================================
@@ -719,6 +725,7 @@ OWLS_CONFIG = {
     'ORDER_ID_PREFIX': 'OWL',
     'VENDOR_COMMISSION_RATE': 0.15,  # 15%
     'POINTS_PER_VND': 0.001,  # 1 point per 1000 VND
+    'PAYMENT_TIMEOUT_MINUTES': 30,  # Auto-cancel unpaid orders after 30 mins
 }
 
 # =============================================================================

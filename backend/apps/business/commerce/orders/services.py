@@ -11,9 +11,10 @@ import string
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Dict, Any, List
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import F
 from django.conf import settings
+from rest_framework.exceptions import ValidationError as DRFValidationError
 import logging
 
 if TYPE_CHECKING:
@@ -207,14 +208,32 @@ class OrderService:
             )
             
             # Update inventory using F() expressions for atomicity
+            # Wrapped in try/except to handle race condition where CheckConstraint
+            # prevents stock going negative (two users buy last item simultaneously)
             if product.track_inventory:
-                if item.variant_id:
-                    ProductVariant.objects.filter(id=item.variant_id).update(
-                        stock_quantity=F('stock_quantity') - item.quantity
-                    )
-                else:
-                    Product.objects.filter(id=product.id).update(
-                        stock_quantity=F('stock_quantity') - item.quantity
+                try:
+                    if item.variant_id:
+                        updated = ProductVariant.objects.filter(id=item.variant_id).update(
+                            stock_quantity=F('stock_quantity') - item.quantity
+                        )
+                        if not updated:
+                            raise DRFValidationError(
+                                f'Sản phẩm {product.name} - {item.variant.name} không còn tồn tại.'
+                            )
+                    else:
+                        updated = Product.objects.filter(id=product.id).update(
+                            stock_quantity=F('stock_quantity') - item.quantity
+                        )
+                        if not updated:
+                            raise DRFValidationError(
+                                f'Sản phẩm {product.name} không còn tồn tại.'
+                            )
+                except IntegrityError:
+                    # Database CheckConstraint violation - stock would go negative
+                    variant_name = f' - {item.variant.name}' if item.variant else ''
+                    raise DRFValidationError(
+                        f'Sản phẩm {product.name}{variant_name} vừa hết hàng. '
+                        f'Vui lòng giảm số lượng hoặc chọn sản phẩm khác.'
                     )
         
         # Increment coupon usage

@@ -216,6 +216,10 @@ class PaymentWebhookView(APIView):
                 payment.failure_reason = f"VNPay error: {response_code}"
                 payment.save()
                 
+                # Trigger stock restoration task
+                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                
                 logger.warning(f"VNPay payment failed: {txn_ref}, code: {response_code}")
                 return Response({'RspCode': '00', 'Message': 'Confirm Success'})
                 
@@ -258,6 +262,10 @@ class PaymentWebhookView(APIView):
                 payment.failure_reason = f"MoMo error: {result_code}"
                 payment.save()
                 
+                # Trigger stock restoration task
+                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                
                 logger.warning(f"MoMo payment failed: {order_id}, code: {result_code}")
                 
         except Payment.DoesNotExist:
@@ -299,6 +307,10 @@ class PaymentWebhookView(APIView):
                 payment.gateway_response = payload
                 payment.failure_reason = f"ZaloPay error: {status_code}"
                 payment.save()
+                
+                # Trigger stock restoration task
+                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
                 
                 logger.warning(f"ZaloPay payment failed: {app_trans_id}, code: {status_code}")
                 
