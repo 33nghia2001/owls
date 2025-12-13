@@ -1,22 +1,57 @@
 """
-URL configuration for backend project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+URL Configuration for Owls E-commerce Platform
+==============================================
+API routing with versioning and documentation.
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView
+)
+
+# API v1 URLs
+api_v1_patterns = [
+    # Authentication
+    path('auth/', include('apps.base.core.users.urls')),
+    
+    # Commerce
+    path('products/', include('apps.business.commerce.products.urls')),
+    path('cart/', include('apps.business.commerce.cart.urls')),
+    path('orders/', include('apps.business.commerce.orders.urls')),
+    path('payments/', include('apps.business.commerce.payments.urls')),
+    
+    # Partners
+    path('vendors/', include('apps.business.partners.vendors.urls')),
+    
+    # Client Experience
+    path('reviews/', include('apps.client.experience.reviews.urls')),
+    path('wishlist/', include('apps.client.experience.wishlist.urls')),
+    path('coupons/', include('apps.client.experience.coupons.urls')),
+]
 
 urlpatterns = [
+    # Admin
     path('admin/', admin.site.urls),
+    
+    # API v1
+    path('api/v1/', include((api_v1_patterns, 'api-v1'))),
+    
+    # API Documentation
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Custom Admin Site Configuration
+admin.site.site_header = 'Owls E-commerce Admin'
+admin.site.site_title = 'Owls Admin Portal'
+admin.site.index_title = 'Welcome to Owls Management System'
