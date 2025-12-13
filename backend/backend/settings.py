@@ -697,6 +697,18 @@ CELERY_BEAT_SCHEDULE = {
         'args': (30,),  # 30 days old threshold
         'options': {'queue': 'maintenance'},
     },
+    # Reconcile pending payments every 15 minutes
+    'reconcile-pending-payments': {
+        'task': 'payments.reconcile_pending_payments',
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes
+        'options': {'queue': 'payments'},
+    },
+    # Expire old pending payments hourly
+    'expire-old-pending-payments': {
+        'task': 'payments.expire_old_pending_payments',
+        'schedule': crontab(minute=0),  # Every hour at minute 0
+        'options': {'queue': 'payments'},
+    },
 }
 
 # =============================================================================
