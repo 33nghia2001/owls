@@ -29,6 +29,10 @@ api_v1_patterns = [
     # Support Tickets
     path('support/', include('apps.base.operations.support.urls')),
 
+    # ===== BASE RISK =====
+    # Fraud Detection
+    path('fraud/', include('apps.base.risk.fraud_detection.urls')),
+
     # ===== BUSINESS COMMERCE =====
     path('products/', include('apps.business.commerce.products.urls')),
     path('cart/', include('apps.business.commerce.cart.urls')),
