@@ -15,23 +15,50 @@ from drf_spectacular.views import (
 
 # API v1 URLs
 api_v1_patterns = [
+    # ===== BASE CORE =====
     # Authentication
     path('auth/', include('apps.base.core.users.urls')),
-    
-    # Commerce
+    # Locations
+    path('locations/', include('apps.base.core.locations.urls')),
+
+    # ===== BASE OPERATIONS =====
+    # Audit Logs (Admin)
+    path('audit/', include('apps.base.operations.audit_logs.urls')),
+    # Support Tickets
+    path('support/', include('apps.base.operations.support.urls')),
+
+    # ===== BUSINESS COMMERCE =====
     path('products/', include('apps.business.commerce.products.urls')),
     path('cart/', include('apps.business.commerce.cart.urls')),
     path('orders/', include('apps.business.commerce.orders.urls')),
     path('payments/', include('apps.business.commerce.payments.urls')),
-    
-    # Partners
+
+    # ===== BUSINESS PARTNERS =====
     path('vendors/', include('apps.business.partners.vendors.urls')),
     path('shipping/', include('apps.business.partners.shipping.urls')),
-    
-    # Client Experience
+
+    # ===== CLIENT CONTENT =====
+    # Blog
+    path('blog/', include('apps.client.content.blog.urls')),
+    # Static Pages
+    path('pages/', include('apps.client.content.pages.urls')),
+    # Banners
+    path('banners/', include('apps.client.content.banners.urls')),
+
+    # ===== CLIENT EXPERIENCE =====
     path('reviews/', include('apps.client.experience.reviews.urls')),
     path('wishlist/', include('apps.client.experience.wishlist.urls')),
     path('coupons/', include('apps.client.experience.coupons.urls')),
+    # Loyalty Program
+    path('loyalty/', include('apps.client.experience.loyalty.urls')),
+    # Messaging/Notifications
+    path('notifications/', include('apps.client.experience.messaging.urls')),
+
+    # ===== GROWTH INTELLIGENCE =====
+    # Search
+    path('search/', include('apps.growth.intelligence.search.urls')),
+    # Recommendations
+    path('recommendations/', include('apps.growth.intelligence.recommendations.urls')),
 ]
 
 urlpatterns = [
