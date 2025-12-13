@@ -92,13 +92,14 @@ THIRD_PARTY_APPS = [
 ]
 
 # =============================================================================
-# SENTRY ERROR MONITORING (Production Only)
+# SENTRY ERROR MONITORING
 # =============================================================================
 # SECURITY: Sentry provides real-time error tracking and alerting
 # Required for production to monitor errors without blocking (unlike mail_admins)
 SENTRY_DSN = env('SENTRY_DSN', default='')
-if SENTRY_DSN and not DEBUG:
+if SENTRY_DSN:
     import sentry_sdk
+    import logging
     from sentry_sdk.integrations.django import DjangoIntegration
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.redis import RedisIntegration
@@ -123,8 +124,8 @@ if SENTRY_DSN and not DEBUG:
         traces_sample_rate=env.float('SENTRY_TRACES_SAMPLE_RATE', default=0.1),
         # Set profiles_sample_rate for profiling (0.1 = 10% of sampled transactions)
         profiles_sample_rate=env.float('SENTRY_PROFILES_SAMPLE_RATE', default=0.1),
-        # Send user info (only user ID, never PII)
-        send_default_pii=False,
+        # Send user info (user ID, email, username for better debugging)
+        send_default_pii=True,
         # Environment tag
         environment=env('SENTRY_ENVIRONMENT', default='production'),
         # Release version (use git commit or version number)

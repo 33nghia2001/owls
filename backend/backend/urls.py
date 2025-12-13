@@ -84,6 +84,20 @@ urlpatterns = [
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
 
+# Sentry debug endpoint - triggers an error to test Sentry integration
+def trigger_error(request):
+    """
+    Test endpoint to verify Sentry error tracking.
+    Visit /sentry-debug/ to trigger a test error.
+    Only available in DEBUG mode for security.
+    """
+    division_by_zero = 1 / 0
+
+if settings.DEBUG:
+    urlpatterns += [
+        path('sentry-debug/', trigger_error),
+    ]
+
 # Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
