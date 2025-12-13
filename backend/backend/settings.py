@@ -92,6 +92,73 @@ THIRD_PARTY_APPS = [
 ]
 
 # =============================================================================
+# SENTRY ERROR MONITORING (Production Only)
+# =============================================================================
+# SECURITY: Sentry provides real-time error tracking and alerting
+# Required for production to monitor errors without blocking (unlike mail_admins)
+SENTRY_DSN = env('SENTRY_DSN', default='')
+if SENTRY_DSN and not DEBUG:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style="url",
+                middleware_spans=True,
+            ),
+            CeleryIntegration(monitor_beat_tasks=True),
+            RedisIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,        # Capture info and above as breadcrumbs
+                event_level=logging.ERROR  # Send errors as events
+            ),
+        ],
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        # Reduce this in high-traffic production (0.1 = 10%)
+        traces_sample_rate=env.float('SENTRY_TRACES_SAMPLE_RATE', default=0.1),
+        # Set profiles_sample_rate for profiling (0.1 = 10% of sampled transactions)
+        profiles_sample_rate=env.float('SENTRY_PROFILES_SAMPLE_RATE', default=0.1),
+        # Send user info (only user ID, never PII)
+        send_default_pii=False,
+        # Environment tag
+        environment=env('SENTRY_ENVIRONMENT', default='production'),
+        # Release version (use git commit or version number)
+        release=env('SENTRY_RELEASE', default='owls@1.0.0'),
+        # Don't send errors from DEBUG mode
+        debug=False,
+        # Filter out sensitive data
+        before_send=lambda event, hint: _sentry_before_send(event, hint),
+    )
+    
+    def _sentry_before_send(event, hint):
+        """
+        SECURITY: Filter sensitive data before sending to Sentry.
+        Remove passwords, tokens, and other sensitive information.
+        """
+        # Remove sensitive headers
+        if 'request' in event and 'headers' in event['request']:
+            sensitive_headers = ['authorization', 'cookie', 'x-csrftoken']
+            event['request']['headers'] = {
+                k: '[Filtered]' if k.lower() in sensitive_headers else v
+                for k, v in event['request']['headers'].items()
+            }
+        
+        # Remove sensitive data from request body
+        if 'request' in event and 'data' in event['request']:
+            if isinstance(event['request']['data'], dict):
+                sensitive_fields = ['password', 'token', 'secret', 'credit_card', 'cvv']
+                for field in sensitive_fields:
+                    if field in event['request']['data']:
+                        event['request']['data'][field] = '[Filtered]'
+        
+        return event
+
+# =============================================================================
 # OWLS APPS - 4 PILLARS ARCHITECTURE
 # =============================================================================
 LOCAL_APPS = [
@@ -557,16 +624,18 @@ if DEBUG:
         'http://127.0.0.1:5174',
     ])
 else:
-    # SECURITY: Load CORS origins from environment variable for flexibility
+    # SECURITY: In production, CORS_ALLOWED_ORIGINS must be explicitly set
+    # No default values to prevent misconfiguration in staging/production
     # Format: comma-separated list of origins
     # Example: CORS_ALLOWED_ORIGINS=https://owls.asia,https://admin.owls.asia
-    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
-        'https://owls.asia',
-        'https://www.owls.asia',
-        'https://admin.owls.asia',
-        'https://seller.owls.asia',
-        'https://api.owls.asia',
-    ])
+    _cors_origins = env.list('CORS_ALLOWED_ORIGINS', default=[])
+    if not _cors_origins:
+        raise ImproperlyConfigured(
+            "SECURITY ERROR: CORS_ALLOWED_ORIGINS environment variable is required in production. "
+            "Set it to a comma-separated list of allowed origins. "
+            "Example: CORS_ALLOWED_ORIGINS=https://owls.asia,https://admin.owls.asia"
+        )
+    CORS_ALLOWED_ORIGINS = _cors_origins
 
 # CORS Regex patterns for dynamic subdomains
 # Use case: Multi-tenant with subdomains like store1.owls.asia, store2.owls.asia

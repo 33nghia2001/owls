@@ -67,36 +67,58 @@ class CreateOrderView(APIView):
         user = request.user
         idempotency_key = str(serializer.validated_data['idempotency_key'])
         
-        # SECURITY: Check idempotency key to prevent duplicate orders
+        # SECURITY FIX: Use cache.add() for atomic idempotency check
         # Key format: order_idempotency:{user_id}:{idempotency_key}
         cache_key = f"order_idempotency:{user.id}:{idempotency_key}"
         
-        # Check if this key was already used (expires after 24 hours)
-        existing_order_id = cache.get(cache_key)
-        if existing_order_id:
-            # Return the existing order instead of creating a duplicate
-            try:
-                existing_order = Order.objects.get(id=existing_order_id, user=user)
+        # SECURITY: Use cache.add() which is atomic - only succeeds if key doesn't exist
+        # This prevents TOCTOU race condition between cache.get() and cache.set()
+        # Value 'processing' indicates request is being processed
+        lock_acquired = cache.add(cache_key, 'processing', timeout=86400)  # 24 hours
+        
+        if not lock_acquired:
+            # Key already exists - either processing or completed
+            existing_value = cache.get(cache_key)
+            if existing_value and existing_value != 'processing':
+                # It's an order ID - return the existing order
+                try:
+                    existing_order = Order.objects.get(id=existing_value, user=user)
+                    return Response({
+                        'success': True,
+                        'message': 'Order already created (duplicate request detected)',
+                        'data': OrderDetailSerializer(existing_order).data,
+                        'duplicate': True
+                    }, status=status.HTTP_200_OK)
+                except Order.DoesNotExist:
+                    # Order was deleted, clear the key and allow retry
+                    cache.delete(cache_key)
+                    # Re-acquire the lock
+                    if not cache.add(cache_key, 'processing', timeout=86400):
+                        return Response({
+                            'success': False,
+                            'error': {'message': 'Request already in progress. Please wait.'}
+                        }, status=status.HTTP_409_CONFLICT)
+            else:
+                # Another request is processing - return conflict
                 return Response({
-                    'success': True,
-                    'message': 'Order already created (duplicate request detected)',
-                    'data': OrderDetailSerializer(existing_order).data,
-                    'duplicate': True
-                }, status=status.HTTP_200_OK)
-            except Order.DoesNotExist:
-                # Order was deleted somehow, allow new creation
-                pass
+                    'success': False,
+                    'error': {'message': 'Request already in progress. Please wait.'}
+                }, status=status.HTTP_409_CONFLICT)
         
         try:
             # Lock cart with select_for_update to prevent race conditions
             cart = Cart.objects.select_for_update().get(user=user)
         except Cart.DoesNotExist:
+            # Release the idempotency lock on failure
+            cache.delete(cache_key)
             return Response({
                 'success': False,
                 'error': {'message': 'Cart not found'}
             }, status=status.HTTP_404_NOT_FOUND)
         
         if cart.items.count() == 0:
+            # Release the idempotency lock on failure
+            cache.delete(cache_key)
             return Response({
                 'success': False,
                 'error': {'message': 'Cart is empty'}
@@ -109,6 +131,8 @@ class CreateOrderView(APIView):
                 user=user
             )
         except UserAddress.DoesNotExist:
+            # Release the idempotency lock on failure
+            cache.delete(cache_key)
             return Response({
                 'success': False,
                 'error': {'message': 'Shipping address not found'}
@@ -131,7 +155,8 @@ class CreateOrderView(APIView):
                 source='web'
             )
             
-            # Store idempotency key with order ID (expires after 24 hours)
+            # SECURITY: Update idempotency key with actual order ID
+            # This atomically replaces 'processing' with the real order ID
             cache.set(cache_key, str(order.id), timeout=86400)
             
             return Response({
@@ -141,6 +166,8 @@ class CreateOrderView(APIView):
             }, status=status.HTTP_201_CREATED)
             
         except ValueError as e:
+            # Release the idempotency lock on failure
+            cache.delete(cache_key)
             return Response({
                 'success': False,
                 'error': {'message': str(e)}

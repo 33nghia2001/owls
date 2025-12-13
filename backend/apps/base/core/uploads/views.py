@@ -484,6 +484,12 @@ class ConfirmUploadView(APIView):
                 'error': {'message': 'Failed to verify upload'}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+        # SECURITY: Trigger async magic bytes validation
+        # This validates that the actual file content matches the declared content-type
+        # to prevent attacks where malware is uploaded with fake content-type headers
+        from .tasks import validate_file_magic_bytes_task
+        validate_file_magic_bytes_task.delay(str(upload.id))
+        
         # SECURITY: Sanitize filename in log to prevent log injection
         from apps.base.core.system.security import sanitize_for_logging
         safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)

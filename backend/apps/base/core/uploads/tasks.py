@@ -286,6 +286,200 @@ def cleanup_orphaned_uploads_task(days_old: int = 30):
     }
 
 
+@shared_task(name='uploads.validate_file_magic_bytes')
+def validate_file_magic_bytes_task(upload_id: str) -> dict:
+    """
+    Validate uploaded file's actual type using magic bytes (file signature).
+    
+    SECURITY: This task prevents attackers from uploading malicious files
+    (e.g., .exe) with spoofed content-type headers (e.g., image/png).
+    
+    Should be called after file upload confirmation but before file is
+    made available for use.
+    
+    Args:
+        upload_id: UUID of the upload to validate
+        
+    Returns:
+        dict: {
+            'valid': bool,
+            'detected_type': str,
+            'declared_type': str,
+            'message': str
+        }
+    """
+    from .models import Upload
+    
+    try:
+        upload = Upload.objects.get(id=upload_id)
+    except Upload.DoesNotExist:
+        logger.error(f"Upload not found for magic bytes validation: {upload_id}")
+        return {
+            'valid': False,
+            'detected_type': None,
+            'declared_type': None,
+            'message': 'Upload not found'
+        }
+    
+    if upload.status != Upload.Status.COMPLETED:
+        return {
+            'valid': False,
+            'detected_type': None,
+            'declared_type': upload.content_type,
+            'message': 'Upload not in COMPLETED status'
+        }
+    
+    try:
+        import magic
+    except ImportError:
+        logger.error("python-magic library not installed. Run: pip install python-magic-bin")
+        return {
+            'valid': True,  # Fail open in dev, but log error
+            'detected_type': None,
+            'declared_type': upload.content_type,
+            'message': 'python-magic not installed - validation skipped'
+        }
+    
+    try:
+        # Get file content from S3/local storage
+        import boto3
+        from botocore.config import Config
+        from botocore.exceptions import ClientError
+        
+        if not getattr(settings, 'AWS_S3_ENDPOINT_URL', None):
+            # Local storage
+            if not upload.file:
+                return {
+                    'valid': False,
+                    'detected_type': None,
+                    'declared_type': upload.content_type,
+                    'message': 'No file attached'
+                }
+            upload.file.seek(0)
+            file_header = upload.file.read(2048)  # Read first 2KB for magic detection
+            upload.file.seek(0)
+        else:
+            # S3/R2 storage - download first 2KB
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=getattr(settings, 'AWS_S3_REGION_NAME', 'auto'),
+                config=Config(signature_version='s3v4')
+            )
+            
+            from .storage import get_upload_path
+            key = get_upload_path(upload, upload.original_filename, upload.upload_type)
+            
+            response = s3_client.get_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=key,
+                Range='bytes=0-2047'  # First 2KB
+            )
+            file_header = response['Body'].read()
+        
+        # Detect actual MIME type using magic bytes
+        detected_type = magic.from_buffer(file_header, mime=True)
+        declared_type = upload.content_type or ''
+        
+        # Define allowed type mappings (declared -> acceptable detected types)
+        # Some formats have multiple valid magic signatures
+        TYPE_MAPPINGS = {
+            # Images
+            'image/jpeg': ['image/jpeg'],
+            'image/png': ['image/png'],
+            'image/gif': ['image/gif'],
+            'image/webp': ['image/webp'],
+            'image/svg+xml': ['image/svg+xml', 'text/plain', 'text/xml', 'application/xml'],
+            # Documents
+            'application/pdf': ['application/pdf'],
+            'application/msword': ['application/msword', 'application/x-ole-storage'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/zip'  # DOCX is a ZIP container
+            ],
+            'application/vnd.ms-excel': ['application/vnd.ms-excel', 'application/x-ole-storage'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/zip'
+            ],
+            # Videos
+            'video/mp4': ['video/mp4', 'video/x-m4v'],
+            'video/webm': ['video/webm'],
+            # Audio
+            'audio/mpeg': ['audio/mpeg'],
+            'audio/mp3': ['audio/mpeg'],
+            'audio/wav': ['audio/wav', 'audio/x-wav'],
+            # Archives
+            'application/zip': ['application/zip'],
+            'application/x-rar-compressed': ['application/x-rar-compressed', 'application/x-rar'],
+            # Text
+            'text/plain': ['text/plain'],
+            'text/csv': ['text/plain', 'text/csv', 'application/csv'],
+            'application/json': ['text/plain', 'application/json'],
+        }
+        
+        # Check if detected type matches declared type
+        declared_base = declared_type.split(';')[0].strip().lower()
+        detected_base = detected_type.lower() if detected_type else ''
+        
+        allowed_types = TYPE_MAPPINGS.get(declared_base, [declared_base])
+        is_valid = detected_base in allowed_types
+        
+        # Update upload metadata with validation result
+        upload.metadata = upload.metadata or {}
+        upload.metadata['magic_validated'] = True
+        upload.metadata['magic_validation_date'] = timezone.now().isoformat()
+        upload.metadata['detected_content_type'] = detected_type
+        upload.metadata['magic_valid'] = is_valid
+        
+        if is_valid:
+            upload.save(update_fields=['metadata', 'updated_at'])
+            logger.info(f"Upload {upload_id} magic bytes valid: {detected_type}")
+            return {
+                'valid': True,
+                'detected_type': detected_type,
+                'declared_type': declared_type,
+                'message': 'File type validated successfully'
+            }
+        else:
+            # SECURITY: Type mismatch - potential attack
+            logger.warning(
+                f"SECURITY: Magic bytes mismatch for upload {upload_id}. "
+                f"Declared: {declared_type}, Detected: {detected_type}"
+            )
+            
+            # Mark upload as failed/suspicious
+            upload.status = Upload.Status.FAILED
+            upload.metadata['failure_reason'] = f'Type mismatch: declared {declared_type}, detected {detected_type}'
+            upload.save(update_fields=['status', 'metadata', 'updated_at'])
+            
+            return {
+                'valid': False,
+                'detected_type': detected_type,
+                'declared_type': declared_type,
+                'message': f'File type mismatch: expected {declared_type}, got {detected_type}'
+            }
+            
+    except ClientError as e:
+        logger.error(f"S3 error validating magic bytes for {upload_id}: {e}")
+        return {
+            'valid': False,
+            'detected_type': None,
+            'declared_type': upload.content_type,
+            'message': f'Storage error: {str(e)}'
+        }
+    except Exception as e:
+        logger.error(f"Error validating magic bytes for upload {upload_id}: {e}")
+        return {
+            'valid': False,
+            'detected_type': None,
+            'declared_type': upload.content_type,
+            'message': str(e)
+        }
+
+
 @shared_task(name='uploads.verify_s3_file_exists')
 def verify_s3_file_exists_task(upload_id: str) -> bool:
     """
