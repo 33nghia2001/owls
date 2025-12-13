@@ -2,6 +2,13 @@
 # OWLS E-COMMERCE PLATFORM - GITIGNORE
 # =============================================================================
 
+# --- Security Keys ---
+keys/
+*.pem
+*.key
+private.pem
+public.pem
+
 # --- Python ---
 __pycache__/
 *.py[cod]

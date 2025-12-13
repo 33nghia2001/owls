@@ -340,14 +340,34 @@ REST_FRAMEWORK = {
 }
 
 # =============================================================================
-# JWT CONFIGURATION
+# JWT CONFIGURATION (RS256 - Asymmetric Keys)
 # =============================================================================
-# NOTE: Currently using HS256 (symmetric key). For microservices architecture,
-# consider switching to RS256 (asymmetric keys) for better security:
-# - RS256 allows services to verify tokens without knowing the private key
-# - Set ALGORITHM='RS256', SIGNING_KEY=<private_key>, VERIFYING_KEY=<public_key>
-# - Generate keys: openssl genrsa -out private.pem 2048
-#                  openssl rsa -in private.pem -pubout -out public.pem
+# RS256 provides better security for distributed systems:
+# - Only the backend holds the private key (signing)
+# - Other services can verify tokens with public key only
+# - No need to share SECRET_KEY across services
+
+def load_key_from_file(path):
+    """Load key from file path."""
+    from pathlib import Path
+    key_path = Path(path)
+    if key_path.exists():
+        return key_path.read_text()
+    return None
+
+# Load RSA keys
+JWT_PRIVATE_KEY = env('JWT_PRIVATE_KEY', default='')
+JWT_PUBLIC_KEY = env('JWT_PUBLIC_KEY', default='')
+
+# If not in env, try loading from files
+if not JWT_PRIVATE_KEY:
+    JWT_PRIVATE_KEY = load_key_from_file(BASE_DIR / 'keys' / 'private.pem') or ''
+if not JWT_PUBLIC_KEY:
+    JWT_PUBLIC_KEY = load_key_from_file(BASE_DIR / 'keys' / 'public.pem') or ''
+
+# Fallback to HS256 if keys not found
+USE_RS256 = bool(JWT_PRIVATE_KEY and JWT_PUBLIC_KEY)
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -355,10 +375,10 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     
-    # Algorithm: HS256 (symmetric) or RS256 (asymmetric for microservices)
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    # 'VERIFYING_KEY': None,  # Required for RS256
+    # RS256 (asymmetric) or HS256 (symmetric) based on key availability
+    'ALGORITHM': 'RS256' if USE_RS256 else 'HS256',
+    'SIGNING_KEY': JWT_PRIVATE_KEY if USE_RS256 else SECRET_KEY,
+    'VERIFYING_KEY': JWT_PUBLIC_KEY if USE_RS256 else None,
     
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
