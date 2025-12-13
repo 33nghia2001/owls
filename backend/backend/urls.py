@@ -26,6 +26,7 @@ api_v1_patterns = [
     
     # Partners
     path('vendors/', include('apps.business.partners.vendors.urls')),
+    path('shipping/', include('apps.business.partners.shipping.urls')),
     
     # Client Experience
     path('reviews/', include('apps.client.experience.reviews.urls')),
