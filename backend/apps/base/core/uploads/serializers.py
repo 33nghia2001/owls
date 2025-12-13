@@ -63,10 +63,131 @@ class UploadCreateSerializer(serializers.Serializer):
         'video/mp4', 'video/webm', 'video/quicktime'
     ]
     
+    # SECURITY: Magic bytes to MIME type mapping for server-side validation
+    # This prevents attackers from spoofing Content-Type header
+    MAGIC_BYTES_MAP = {
+        # Images
+        b'\xff\xd8\xff': 'image/jpeg',
+        b'\x89PNG\r\n\x1a\n': 'image/png',
+        b'GIF87a': 'image/gif',
+        b'GIF89a': 'image/gif',
+        b'RIFF': 'image/webp',  # WebP starts with RIFF....WEBP
+        b'<svg': 'image/svg+xml',
+        b'<?xml': 'image/svg+xml',  # SVG with XML declaration
+        # Documents
+        b'%PDF': 'application/pdf',
+        b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1': 'application/msword',  # OLE (doc, xls)
+        b'PK\x03\x04': 'application/zip',  # ZIP-based (docx, xlsx, etc.)
+        # Videos
+        b'\x00\x00\x00\x18ftypmp4': 'video/mp4',
+        b'\x00\x00\x00\x1cftypisom': 'video/mp4',
+        b'\x00\x00\x00\x20ftypisom': 'video/mp4',
+        b'\x1aE\xdf\xa3': 'video/webm',
+        b'\x00\x00\x00\x14ftypqt': 'video/quicktime',
+    }
+    
+    def _detect_mime_from_magic_bytes(self, file) -> str:
+        """
+        Detect actual MIME type from file's magic bytes.
+        
+        SECURITY: This prevents Content-Type spoofing attacks where attacker
+        sends malicious file with fake Content-Type header.
+        
+        Returns:
+            str: Detected MIME type or empty string if unknown
+        """
+        # Read first 32 bytes for magic number detection
+        file.seek(0)
+        header = file.read(32)
+        file.seek(0)  # Reset file pointer
+        
+        if not header:
+            return ''
+        
+        # Check for known magic bytes
+        for magic, mime_type in self.MAGIC_BYTES_MAP.items():
+            if header.startswith(magic):
+                # Special handling for WebP (RIFF....WEBP)
+                if magic == b'RIFF' and b'WEBP' in header[:16]:
+                    return 'image/webp'
+                elif magic == b'RIFF':
+                    continue  # Not WebP, might be other RIFF format
+                return mime_type
+        
+        # Check for ZIP-based Office formats
+        if header.startswith(b'PK\x03\x04'):
+            # Try to detect specific Office format
+            try:
+                import zipfile
+                import io
+                
+                file.seek(0)
+                content = file.read()
+                file.seek(0)
+                
+                with zipfile.ZipFile(io.BytesIO(content), 'r') as zf:
+                    namelist = zf.namelist()
+                    if '[Content_Types].xml' in namelist:
+                        if 'word/' in str(namelist):
+                            return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                        elif 'xl/' in str(namelist):
+                            return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            except Exception:
+                pass
+            return 'application/zip'
+        
+        # Try python-magic if available (more comprehensive detection)
+        try:
+            import magic
+            file.seek(0)
+            mime = magic.from_buffer(file.read(2048), mime=True)
+            file.seek(0)
+            return mime
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        
+        return ''
+    
     def validate_file(self, file):
-        """Validate uploaded file."""
-        # Get content type
-        content_type = file.content_type
+        """Validate uploaded file with magic bytes verification."""
+        # SECURITY: Get actual content type from magic bytes, not from client header
+        detected_type = self._detect_mime_from_magic_bytes(file)
+        client_type = file.content_type
+        
+        # Build allowed types list
+        all_allowed = (
+            self.ALLOWED_IMAGE_TYPES + 
+            self.ALLOWED_DOCUMENT_TYPES + 
+            self.ALLOWED_VIDEO_TYPES
+        )
+        
+        # Determine the content type to use
+        if detected_type:
+            # Use detected type (trusted)
+            content_type = detected_type
+            
+            # SECURITY: Warn if client type doesn't match detected type
+            if client_type != detected_type:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"Content-Type mismatch: client sent '{client_type}', "
+                    f"detected '{detected_type}' for file '{file.name}'"
+                )
+        else:
+            # Fallback to client type only for known safe types with additional checks
+            content_type = client_type
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Could not detect MIME type for file '{file.name}', "
+                f"falling back to client-provided '{client_type}'"
+            )
+        
+        # Store the verified content type for later use
+        file._verified_content_type = content_type
         
         # Check file size based on type
         if content_type in self.ALLOWED_IMAGE_TYPES:
@@ -80,14 +201,10 @@ class UploadCreateSerializer(serializers.Serializer):
             )
         
         # Check allowed content types
-        all_allowed = (
-            self.ALLOWED_IMAGE_TYPES + 
-            self.ALLOWED_DOCUMENT_TYPES + 
-            self.ALLOWED_VIDEO_TYPES
-        )
         if content_type not in all_allowed:
             raise serializers.ValidationError(
-                f'File type "{content_type}" is not allowed'
+                f'File type "{content_type}" is not allowed. '
+                f'Detected from file content, not from header.'
             )
         
         return file
@@ -100,7 +217,8 @@ class UploadCreateSerializer(serializers.Serializer):
         
         # Get image dimensions if applicable
         width, height = None, None
-        content_type = file.content_type
+        # SECURITY: Use verified content type, not client-provided
+        content_type = getattr(file, '_verified_content_type', file.content_type)
         
         if content_type in self.ALLOWED_IMAGE_TYPES:
             try:

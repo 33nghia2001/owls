@@ -68,6 +68,10 @@ class CreatePaymentView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
         
         fee = payment_method.calculate_fee(order.total)
+        
+        # SECURITY: Get real client IP, not proxy IP
+        from apps.base.core.system.network import get_client_ip
+        
         payment = Payment.objects.create(
             order=order,
             user=request.user,
@@ -76,7 +80,7 @@ class CreatePaymentView(APIView):
             amount=order.total,
             fee=fee,
             net_amount=order.total - fee,
-            ip_address=request.META.get('REMOTE_ADDR'),
+            ip_address=get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500]
         )
         
@@ -363,8 +367,10 @@ class PaymentWebhookView(APIView):
                     logger.info(f"VNPay webhook ignored - payment {txn_ref} already {payment.status}")
                     return Response({'RspCode': '00', 'Message': 'Confirm Success'})
                 
-                # Verify amount matches (convert VNPay amount which is in smallest unit)
-                expected_amount = int(payment.amount * 100)
+                # CURRENCY PRECISION: Use Decimal for amount comparison to avoid float errors
+                # VNPay amount is in smallest unit (xu), payment.amount is in VND
+                from decimal import Decimal, ROUND_DOWN
+                expected_amount = int((payment.amount * Decimal('100')).quantize(Decimal('1'), rounding=ROUND_DOWN))
                 received_amount = int(amount) if amount else 0
                 if expected_amount != received_amount:
                     logger.warning(f"VNPay amount mismatch: expected {expected_amount}, got {received_amount}")

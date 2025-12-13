@@ -117,6 +117,7 @@ class CreateOrderView(APIView):
         try:
             # Use OrderService for atomic inventory management
             from .services import OrderService
+            from apps.base.core.system.network import get_client_ip
             
             order_service = OrderService()
             order = order_service.create_from_cart(
@@ -124,7 +125,8 @@ class CreateOrderView(APIView):
                 user=user,
                 shipping_address=shipping_address,
                 customer_note=serializer.validated_data.get('customer_note', ''),
-                ip_address=request.META.get('REMOTE_ADDR'),
+                # SECURITY: Get real client IP, not proxy IP
+                ip_address=get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 source='web'
             )

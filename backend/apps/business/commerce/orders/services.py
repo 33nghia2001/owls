@@ -171,6 +171,9 @@ class OrderService:
                             f'requested {item.quantity}, available {product.stock_quantity}'
                         )
         
+        # SECURITY: Sanitize user-provided text fields to prevent XSS
+        from apps.base.core.system.security import sanitize_text_field
+        
         # Create order
         order = Order.objects.create(
             user=user,
@@ -184,12 +187,12 @@ class OrderService:
             coupon=cart.coupon,
             coupon_code=cart.coupon.code if cart.coupon else '',
             shipping_address=shipping_address,
-            shipping_name=shipping_address.recipient_name,
+            shipping_name=sanitize_text_field(shipping_address.recipient_name, max_length=255),
             shipping_phone=shipping_address.phone_number,
-            shipping_address_line=shipping_address.full_address,
-            shipping_city=shipping_address.city,
+            shipping_address_line=sanitize_text_field(shipping_address.full_address, max_length=500),
+            shipping_city=sanitize_text_field(shipping_address.city, max_length=100),
             shipping_country=shipping_address.country,
-            customer_note=customer_note,
+            customer_note=sanitize_text_field(customer_note, max_length=1000),
             ip_address=ip_address,
             user_agent=user_agent[:500] if user_agent else '',
             source=source

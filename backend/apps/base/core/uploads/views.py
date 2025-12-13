@@ -106,7 +106,10 @@ class UploadCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         upload = serializer.save()
         
-        logger.info(f"File uploaded: {upload.original_filename} by user {request.user.id}")
+        # SECURITY: Sanitize filename in log to prevent log injection attacks
+        from apps.base.core.system.security import sanitize_for_logging
+        safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)
+        logger.info(f"File uploaded: {safe_filename} by user {request.user.id}")
         
         return Response({
             'success': True,
@@ -196,14 +199,18 @@ class UploadDeleteView(APIView):
         
         if hard_delete and request.user.is_staff:
             # Permanent deletion (admin only)
-            filename = upload.original_filename
+            # SECURITY: Sanitize filename in log to prevent log injection
+            from apps.base.core.system.security import sanitize_for_logging
+            safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)
             upload.hard_delete()
-            logger.warning(f"Hard delete: {filename} by admin {request.user.id}")
+            logger.warning(f"Hard delete: {safe_filename} by admin {request.user.id}")
             message = 'File permanently deleted'
         else:
             # Soft delete
+            from apps.base.core.system.security import sanitize_for_logging
+            safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)
             upload.soft_delete()
-            logger.info(f"Soft delete: {upload.original_filename} by user {request.user.id}")
+            logger.info(f"Soft delete: {safe_filename} by user {request.user.id}")
             message = 'File deleted'
         
         return Response({
@@ -360,7 +367,10 @@ class PresignedUploadUrlView(APIView):
                 ExpiresIn=3600  # 1 hour
             )
             
-            logger.info(f"Presigned URL generated for {filename} by user {request.user.id}")
+            # SECURITY: Sanitize filename in log to prevent log injection
+            from apps.base.core.system.security import sanitize_for_logging
+            safe_filename = sanitize_for_logging(filename, max_length=100)
+            logger.info(f"Presigned URL generated for {safe_filename} by user {request.user.id}")
             
             return Response({
                 'success': True,
@@ -414,7 +424,10 @@ class ConfirmUploadView(APIView):
         upload.status = Upload.Status.COMPLETED
         upload.save(update_fields=['status', 'updated_at'])
         
-        logger.info(f"Upload confirmed: {upload.original_filename}")
+        # SECURITY: Sanitize filename in log to prevent log injection
+        from apps.base.core.system.security import sanitize_for_logging
+        safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)
+        logger.info(f"Upload confirmed: {safe_filename}")
         
         return Response({
             'success': True,

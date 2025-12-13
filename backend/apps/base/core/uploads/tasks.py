@@ -16,6 +16,145 @@ logger = logging.getLogger(__name__)
 # Cleanup pending uploads older than this (default: 24 hours)
 PENDING_UPLOAD_MAX_AGE_HOURS = getattr(settings, 'PENDING_UPLOAD_MAX_AGE_HOURS', 24)
 
+# ClamAV configuration
+CLAMAV_ENABLED = getattr(settings, 'CLAMAV_ENABLED', False)
+CLAMAV_HOST = getattr(settings, 'CLAMAV_HOST', 'localhost')
+CLAMAV_PORT = getattr(settings, 'CLAMAV_PORT', 3310)
+
+
+@shared_task(name='uploads.scan_file_for_malware')
+def scan_file_for_malware_task(upload_id: str) -> dict:
+    """
+    Scan uploaded file for malware using ClamAV.
+    
+    SECURITY: This task should be called after file upload but before
+    marking the upload as safe/available for use.
+    
+    Configuration required in settings.py:
+    - CLAMAV_ENABLED = True
+    - CLAMAV_HOST = 'clamav'  # Docker service name or IP
+    - CLAMAV_PORT = 3310
+    
+    Args:
+        upload_id: UUID of the upload to scan
+        
+    Returns:
+        dict: {
+            'status': 'clean' | 'infected' | 'error' | 'skipped',
+            'virus_name': str | None,
+            'message': str
+        }
+    """
+    from .models import Upload
+    
+    if not CLAMAV_ENABLED:
+        logger.debug(f"Malware scanning disabled, skipping upload {upload_id}")
+        return {
+            'status': 'skipped',
+            'virus_name': None,
+            'message': 'ClamAV scanning is disabled'
+        }
+    
+    try:
+        upload = Upload.objects.get(id=upload_id)
+    except Upload.DoesNotExist:
+        logger.error(f"Upload not found for malware scan: {upload_id}")
+        return {
+            'status': 'error',
+            'virus_name': None,
+            'message': 'Upload not found'
+        }
+    
+    if not upload.file:
+        logger.warning(f"No file attached to upload {upload_id}")
+        return {
+            'status': 'error',
+            'virus_name': None,
+            'message': 'No file attached'
+        }
+    
+    try:
+        import pyclamd
+        
+        # Connect to ClamAV daemon
+        cd = pyclamd.ClamdNetworkSocket(host=CLAMAV_HOST, port=CLAMAV_PORT)
+        
+        if not cd.ping():
+            logger.error("ClamAV daemon is not responding")
+            return {
+                'status': 'error',
+                'virus_name': None,
+                'message': 'ClamAV daemon not available'
+            }
+        
+        # Read file content and scan
+        upload.file.seek(0)
+        file_content = upload.file.read()
+        upload.file.seek(0)
+        
+        scan_result = cd.scan_stream(file_content)
+        
+        if scan_result is None:
+            # File is clean
+            logger.info(f"Upload {upload_id} passed malware scan")
+            
+            # Mark as scanned (you may want to add a field for this)
+            upload.metadata = upload.metadata or {}
+            upload.metadata['malware_scanned'] = True
+            upload.metadata['malware_scan_date'] = timezone.now().isoformat()
+            upload.metadata['malware_scan_result'] = 'clean'
+            upload.save(update_fields=['metadata', 'updated_at'])
+            
+            return {
+                'status': 'clean',
+                'virus_name': None,
+                'message': 'No malware detected'
+            }
+        else:
+            # File is infected
+            virus_name = scan_result.get('stream', ['UNKNOWN'])[1] if scan_result else 'UNKNOWN'
+            
+            logger.warning(
+                f"MALWARE DETECTED in upload {upload_id}: {virus_name}"
+            )
+            
+            # Mark as infected and quarantine
+            upload.status = Upload.Status.FAILED
+            upload.metadata = upload.metadata or {}
+            upload.metadata['malware_scanned'] = True
+            upload.metadata['malware_scan_date'] = timezone.now().isoformat()
+            upload.metadata['malware_scan_result'] = 'infected'
+            upload.metadata['virus_name'] = virus_name
+            upload.save()
+            
+            # Optionally delete the infected file
+            try:
+                upload.file.delete(save=False)
+                logger.info(f"Deleted infected file for upload {upload_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete infected file {upload_id}: {e}")
+            
+            return {
+                'status': 'infected',
+                'virus_name': virus_name,
+                'message': f'Malware detected: {virus_name}'
+            }
+            
+    except ImportError:
+        logger.error("pyclamd library not installed. Run: pip install pyclamd")
+        return {
+            'status': 'error',
+            'virus_name': None,
+            'message': 'pyclamd library not installed'
+        }
+    except Exception as e:
+        logger.error(f"Error scanning upload {upload_id}: {e}")
+        return {
+            'status': 'error',
+            'virus_name': None,
+            'message': str(e)
+        }
+
 
 @shared_task(name='uploads.cleanup_pending_uploads')
 def cleanup_pending_uploads_task():

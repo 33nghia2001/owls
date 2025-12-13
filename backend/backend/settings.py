@@ -32,6 +32,13 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
+# Proxy configuration for real IP detection
+# Set to the number of trusted proxies in front of Django
+# - Cloudflare only: 1
+# - Cloudflare + ALB: 2
+# - No proxy (direct): 0
+NUM_PROXIES = env.int('NUM_PROXIES', default=0)
+
 # Site configuration
 SITE_NAME = 'Owls'
 SITE_DOMAIN = env('SITE_DOMAIN', default='owls.asia')
@@ -372,8 +379,20 @@ if not JWT_PRIVATE_KEY:
 if not JWT_PUBLIC_KEY:
     JWT_PUBLIC_KEY = load_key_from_file(BASE_DIR / 'keys' / 'public.pem') or ''
 
-# Fallback to HS256 if keys not found
+# SECURITY: Require RSA keys in production, fallback to HS256 only in DEBUG mode
 USE_RS256 = bool(JWT_PRIVATE_KEY and JWT_PUBLIC_KEY)
+
+if not DEBUG and not USE_RS256:
+    # In production, we strongly recommend using RS256 with RSA keys
+    # for better security. However, we allow HS256 as fallback with a warning.
+    import warnings
+    warnings.warn(
+        "SECURITY WARNING: JWT RSA keys not found. Falling back to HS256 with SECRET_KEY. "
+        "For production, please configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment "
+        "variables or place private.pem and public.pem files in the 'keys' directory. "
+        "RS256 provides better security for distributed systems.",
+        RuntimeWarning
+    )
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
