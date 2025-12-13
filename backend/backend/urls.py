@@ -65,6 +65,10 @@ api_v1_patterns = [
     path('search/', include('apps.growth.intelligence.search.urls')),
     # Recommendations
     path('recommendations/', include('apps.growth.intelligence.recommendations.urls')),
+
+    # ===== GROWTH MARKETING =====
+    # Campaigns
+    path('campaigns/', include('apps.growth.marketing.campaigns.urls')),
 ]
 
 urlpatterns = [
