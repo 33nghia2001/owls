@@ -106,7 +106,22 @@ class OrderService:
         from .models import Order, OrderItem
         from apps.business.commerce.products.models import Product, ProductVariant
         
-        cart_items = list(cart.items.select_related('product', 'variant'))
+        # PERFORMANCE FIX: Use prefetch_related for product images to avoid N+1 queries
+        # Without this, each product.images.filter() in the loop creates a new query
+        from django.db.models import Prefetch
+        from apps.business.commerce.products.models import ProductImage
+        
+        cart_items = list(
+            cart.items
+            .select_related('product', 'variant')
+            .prefetch_related(
+                Prefetch(
+                    'product__images',
+                    queryset=ProductImage.objects.filter(is_primary=True),
+                    to_attr='primary_images'
+                )
+            )
+        )
         
         if not cart_items:
             raise ValueError('Cart is empty')
@@ -185,11 +200,12 @@ class OrderService:
             product = locked_products[item.product_id]
             vendor = product.vendor
             
-            # Get product image
+            # Get product image (already prefetched to avoid N+1 query)
             product_image = ''
-            primary_image = product.images.filter(is_primary=True).first()
-            if primary_image:
-                product_image = primary_image.image.url
+            # Use prefetched primary_images attribute
+            primary_images = getattr(product, 'primary_images', None)
+            if primary_images:
+                product_image = primary_images[0].image.url if primary_images else ''
             
             OrderItem.objects.create(
                 order=order,

@@ -152,7 +152,7 @@ class VerifyPaymentView(APIView):
     responses={200: OpenApiResponse(description='Webhook received')}
 )
 class PaymentWebhookView(APIView):
-    """Handle payment gateway webhooks."""
+    """Handle payment gateway webhooks with signature verification."""
     
     permission_classes = [permissions.AllowAny]
     authentication_classes = []  # No auth for webhooks
@@ -162,8 +162,8 @@ class PaymentWebhookView(APIView):
         
         logger = logging.getLogger(__name__)
         
-        # Log webhook received
-        logger.info(f"Webhook received from {gateway}: {request.data}")
+        # Log webhook received (sanitize sensitive data)
+        logger.info(f"Webhook received from {gateway}")
         
         payload = request.data
         
@@ -177,12 +177,142 @@ class PaymentWebhookView(APIView):
             logger.warning(f"Unknown payment gateway: {gateway}")
             return Response({'status': 'unknown_gateway'}, status=status.HTTP_400_BAD_REQUEST)
     
-    def _handle_vnpay_webhook(self, request, payload):
-        """Handle VNPay IPN callback."""
-        import logging
+    def _verify_vnpay_signature(self, payload: dict) -> bool:
+        """
+        Verify VNPay secure hash signature.
+        
+        CRITICAL SECURITY: Prevents webhook forgery attacks.
+        """
+        import hashlib
+        import hmac
+        import urllib.parse
         from django.conf import settings
         
+        received_hash = payload.get('vnp_SecureHash', '')
+        if not received_hash:
+            return False
+        
+        # Get secret key from settings
+        vnpay_config = getattr(settings, 'VNPAY_CONFIG', {})
+        hash_secret = vnpay_config.get('HASH_SECRET', '')
+        if not hash_secret:
+            import logging
+            logging.getLogger(__name__).error("VNPAY_CONFIG['HASH_SECRET'] not configured")
+            return False
+        
+        # Build data string (exclude vnp_SecureHash and vnp_SecureHashType)
+        input_data = sorted([
+            (k, v) for k, v in payload.items() 
+            if k not in ('vnp_SecureHash', 'vnp_SecureHashType') and v
+        ])
+        query_string = urllib.parse.urlencode(input_data)
+        
+        # Calculate HMAC-SHA512
+        calculated_hash = hmac.new(
+            hash_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha512
+        ).hexdigest().upper()
+        
+        return hmac.compare_digest(calculated_hash, received_hash.upper())
+    
+    def _verify_momo_signature(self, payload: dict) -> bool:
+        """
+        Verify MoMo HMAC-SHA256 signature.
+        
+        CRITICAL SECURITY: Prevents webhook forgery attacks.
+        """
+        import hashlib
+        import hmac
+        from django.conf import settings
+        
+        received_signature = payload.get('signature', '')
+        if not received_signature:
+            return False
+        
+        momo_config = getattr(settings, 'MOMO_CONFIG', {})
+        secret_key = momo_config.get('SECRET_KEY', '')
+        if not secret_key:
+            import logging
+            logging.getLogger(__name__).error("MOMO_CONFIG['SECRET_KEY'] not configured")
+            return False
+        
+        # Build raw signature string per MoMo spec
+        raw_signature = (
+            f"accessKey={momo_config.get('ACCESS_KEY', '')}"
+            f"&amount={payload.get('amount', '')}"
+            f"&extraData={payload.get('extraData', '')}"
+            f"&message={payload.get('message', '')}"
+            f"&orderId={payload.get('orderId', '')}"
+            f"&orderInfo={payload.get('orderInfo', '')}"
+            f"&orderType={payload.get('orderType', '')}"
+            f"&partnerCode={payload.get('partnerCode', '')}"
+            f"&payType={payload.get('payType', '')}"
+            f"&requestId={payload.get('requestId', '')}"
+            f"&responseTime={payload.get('responseTime', '')}"
+            f"&resultCode={payload.get('resultCode', '')}"
+            f"&transId={payload.get('transId', '')}"
+        )
+        
+        calculated_signature = hmac.new(
+            secret_key.encode('utf-8'),
+            raw_signature.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(calculated_signature, received_signature)
+    
+    def _verify_zalopay_signature(self, payload: dict) -> bool:
+        """
+        Verify ZaloPay HMAC-SHA256 MAC.
+        
+        CRITICAL SECURITY: Prevents webhook forgery attacks.
+        """
+        import hashlib
+        import hmac
+        from django.conf import settings
+        
+        received_mac = payload.get('mac', '')
+        if not received_mac:
+            return False
+        
+        zalopay_config = getattr(settings, 'ZALOPAY_CONFIG', {})
+        key2 = zalopay_config.get('KEY2', '')
+        if not key2:
+            import logging
+            logging.getLogger(__name__).error("ZALOPAY_CONFIG['KEY2'] not configured")
+            return False
+        
+        # Build data string per ZaloPay spec
+        data = payload.get('data', '')
+        
+        calculated_mac = hmac.new(
+            key2.encode('utf-8'),
+            data.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(calculated_mac, received_mac)
+    
+    def _handle_vnpay_webhook(self, request, payload):
+        """
+        Handle VNPay IPN callback with signature verification and idempotency.
+        
+        Security measures:
+        1. Verify HMAC-SHA512 signature to prevent forgery
+        2. Check payment status to ensure idempotency
+        3. Use select_for_update to prevent race conditions
+        """
+        import logging
+        from django.conf import settings
+        from django.db import transaction
+        
         logger = logging.getLogger(__name__)
+        
+        # SECURITY: Verify signature FIRST before any processing
+        if not self._verify_vnpay_signature(payload):
+            logger.warning(f"VNPay webhook signature verification FAILED")
+            return Response({'RspCode': '97', 'Message': 'Invalid Checksum'})
         
         # Get transaction reference
         txn_ref = payload.get('vnp_TxnRef')
@@ -193,34 +323,48 @@ class PaymentWebhookView(APIView):
             return Response({'RspCode': '99', 'Message': 'Invalid request'})
         
         try:
-            payment = Payment.objects.get(transaction_id=txn_ref)
-            
-            if response_code == '00':  # Success
-                payment.status = Payment.Status.COMPLETED
-                payment.gateway_response = payload
-                payment.paid_at = timezone.now()
-                payment.save()
+            # Use transaction and select_for_update to prevent race conditions
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(transaction_id=txn_ref)
                 
-                # Update order status
-                order = payment.order
-                order.payment_status = 'paid'
-                order.paid_at = timezone.now()
-                order.save()
-                order.update_status('confirmed', note='Payment received via VNPay')
+                # IDEMPOTENCY: Check if payment already processed
+                if payment.status in [Payment.Status.COMPLETED, Payment.Status.FAILED]:
+                    logger.info(f"VNPay webhook ignored - payment {txn_ref} already {payment.status}")
+                    return Response({'RspCode': '00', 'Message': 'Confirm Success'})
                 
-                logger.info(f"VNPay payment successful: {txn_ref}")
-                return Response({'RspCode': '00', 'Message': 'Confirm Success'})
-            else:
-                payment.status = Payment.Status.FAILED
-                payment.gateway_response = payload
-                payment.failure_reason = f"VNPay error: {response_code}"
-                payment.save()
+                # Verify amount matches (convert VNPay amount which is in smallest unit)
+                expected_amount = int(payment.amount * 100)
+                received_amount = int(amount) if amount else 0
+                if expected_amount != received_amount:
+                    logger.warning(f"VNPay amount mismatch: expected {expected_amount}, got {received_amount}")
+                    return Response({'RspCode': '04', 'Message': 'Invalid Amount'})
                 
-                # Trigger stock restoration task
-                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
-                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                if response_code == '00':  # Success
+                    payment.status = Payment.Status.COMPLETED
+                    payment.gateway_response = payload
+                    payment.paid_at = timezone.now()
+                    payment.save()
+                    
+                    # Update order status
+                    order = payment.order
+                    order.payment_status = 'paid'
+                    order.paid_at = timezone.now()
+                    order.save()
+                    order.update_status('confirmed', note='Payment received via VNPay')
+                    
+                    logger.info(f"VNPay payment successful: {txn_ref}")
+                else:
+                    payment.status = Payment.Status.FAILED
+                    payment.gateway_response = payload
+                    payment.failure_reason = f"VNPay error: {response_code}"
+                    payment.save()
+                    
+                    # Trigger stock restoration task (task handles its own idempotency)
+                    from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                    restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                    
+                    logger.warning(f"VNPay payment failed: {txn_ref}, code: {response_code}")
                 
-                logger.warning(f"VNPay payment failed: {txn_ref}, code: {response_code}")
                 return Response({'RspCode': '00', 'Message': 'Confirm Success'})
                 
         except Payment.DoesNotExist:
@@ -228,45 +372,71 @@ class PaymentWebhookView(APIView):
             return Response({'RspCode': '01', 'Message': 'Order not found'})
     
     def _handle_momo_webhook(self, request, payload):
-        """Handle MoMo IPN callback."""
+        """
+        Handle MoMo IPN callback with signature verification and idempotency.
+        
+        Security measures:
+        1. Verify HMAC-SHA256 signature to prevent forgery
+        2. Check payment status to ensure idempotency
+        3. Use select_for_update to prevent race conditions
+        """
         import logging
+        from django.db import transaction
         
         logger = logging.getLogger(__name__)
         
+        # SECURITY: Verify signature FIRST before any processing
+        if not self._verify_momo_signature(payload):
+            logger.warning(f"MoMo webhook signature verification FAILED")
+            return Response({'status': 'invalid_signature'}, status=status.HTTP_400_BAD_REQUEST)
+        
         order_id = payload.get('orderId')
         result_code = payload.get('resultCode')
+        amount = payload.get('amount')
         
         if not order_id:
             return Response({'status': 'invalid_request'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            payment = Payment.objects.get(transaction_id=order_id)
-            
-            if result_code == 0:  # Success
-                payment.status = Payment.Status.COMPLETED
-                payment.gateway_response = payload
-                payment.paid_at = timezone.now()
-                payment.save()
+            # Use transaction and select_for_update to prevent race conditions
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(transaction_id=order_id)
                 
-                # Update order
-                order = payment.order
-                order.payment_status = 'paid'
-                order.paid_at = timezone.now()
-                order.save()
-                order.update_status('confirmed', note='Payment received via MoMo')
+                # IDEMPOTENCY: Check if payment already processed
+                if payment.status in [Payment.Status.COMPLETED, Payment.Status.FAILED]:
+                    logger.info(f"MoMo webhook ignored - payment {order_id} already {payment.status}")
+                    return Response({'status': 'received'})
                 
-                logger.info(f"MoMo payment successful: {order_id}")
-            else:
-                payment.status = Payment.Status.FAILED
-                payment.gateway_response = payload
-                payment.failure_reason = f"MoMo error: {result_code}"
-                payment.save()
+                # Verify amount matches
+                if amount and int(amount) != int(payment.amount):
+                    logger.warning(f"MoMo amount mismatch: expected {payment.amount}, got {amount}")
+                    return Response({'status': 'invalid_amount'}, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Trigger stock restoration task
-                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
-                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
-                
-                logger.warning(f"MoMo payment failed: {order_id}, code: {result_code}")
+                if result_code == 0:  # Success
+                    payment.status = Payment.Status.COMPLETED
+                    payment.gateway_response = payload
+                    payment.paid_at = timezone.now()
+                    payment.save()
+                    
+                    # Update order
+                    order = payment.order
+                    order.payment_status = 'paid'
+                    order.paid_at = timezone.now()
+                    order.save()
+                    order.update_status('confirmed', note='Payment received via MoMo')
+                    
+                    logger.info(f"MoMo payment successful: {order_id}")
+                else:
+                    payment.status = Payment.Status.FAILED
+                    payment.gateway_response = payload
+                    payment.failure_reason = f"MoMo error: {result_code}"
+                    payment.save()
+                    
+                    # Trigger stock restoration task
+                    from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                    restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                    
+                    logger.warning(f"MoMo payment failed: {order_id}, code: {result_code}")
                 
         except Payment.DoesNotExist:
             logger.error(f"Payment not found: {order_id}")
@@ -274,45 +444,79 @@ class PaymentWebhookView(APIView):
         return Response({'status': 'received'})
     
     def _handle_zalopay_webhook(self, request, payload):
-        """Handle ZaloPay callback."""
+        """
+        Handle ZaloPay callback with signature verification and idempotency.
+        
+        Security measures:
+        1. Verify HMAC-SHA256 MAC to prevent forgery
+        2. Check payment status to ensure idempotency
+        3. Use select_for_update to prevent race conditions
+        """
         import logging
+        import json
+        from django.db import transaction
         
         logger = logging.getLogger(__name__)
         
-        app_trans_id = payload.get('app_trans_id')
-        status_code = payload.get('status')
+        # SECURITY: Verify MAC FIRST before any processing
+        if not self._verify_zalopay_signature(payload):
+            logger.warning(f"ZaloPay webhook MAC verification FAILED")
+            return Response({'return_code': -1, 'return_message': 'mac not equal'})
+        
+        # ZaloPay sends data as JSON string in 'data' field
+        data_str = payload.get('data', '{}')
+        try:
+            data = json.loads(data_str) if isinstance(data_str, str) else data_str
+        except json.JSONDecodeError:
+            data = {}
+        
+        app_trans_id = data.get('app_trans_id') or payload.get('app_trans_id')
+        status_code = data.get('status') or payload.get('status')
+        amount = data.get('amount') or payload.get('amount')
         
         if not app_trans_id:
             return Response({'return_code': -1, 'return_message': 'invalid request'})
         
         try:
-            payment = Payment.objects.get(transaction_id=app_trans_id)
-            
-            if status_code == 1:  # Success
-                payment.status = Payment.Status.COMPLETED
-                payment.gateway_response = payload
-                payment.paid_at = timezone.now()
-                payment.save()
+            # Use transaction and select_for_update to prevent race conditions
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(transaction_id=app_trans_id)
                 
-                # Update order
-                order = payment.order
-                order.payment_status = 'paid'
-                order.paid_at = timezone.now()
-                order.save()
-                order.update_status('confirmed', note='Payment received via ZaloPay')
+                # IDEMPOTENCY: Check if payment already processed
+                if payment.status in [Payment.Status.COMPLETED, Payment.Status.FAILED]:
+                    logger.info(f"ZaloPay webhook ignored - payment {app_trans_id} already {payment.status}")
+                    return Response({'return_code': 1, 'return_message': 'success'})
                 
-                logger.info(f"ZaloPay payment successful: {app_trans_id}")
-            else:
-                payment.status = Payment.Status.FAILED
-                payment.gateway_response = payload
-                payment.failure_reason = f"ZaloPay error: {status_code}"
-                payment.save()
+                # Verify amount matches
+                if amount and int(amount) != int(payment.amount):
+                    logger.warning(f"ZaloPay amount mismatch: expected {payment.amount}, got {amount}")
+                    return Response({'return_code': -1, 'return_message': 'invalid amount'})
                 
-                # Trigger stock restoration task
-                from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
-                restore_stock_for_failed_payment_task.delay(str(payment.order_id))
-                
-                logger.warning(f"ZaloPay payment failed: {app_trans_id}, code: {status_code}")
+                if status_code == 1:  # Success
+                    payment.status = Payment.Status.COMPLETED
+                    payment.gateway_response = payload
+                    payment.paid_at = timezone.now()
+                    payment.save()
+                    
+                    # Update order
+                    order = payment.order
+                    order.payment_status = 'paid'
+                    order.paid_at = timezone.now()
+                    order.save()
+                    order.update_status('confirmed', note='Payment received via ZaloPay')
+                    
+                    logger.info(f"ZaloPay payment successful: {app_trans_id}")
+                else:
+                    payment.status = Payment.Status.FAILED
+                    payment.gateway_response = payload
+                    payment.failure_reason = f"ZaloPay error: {status_code}"
+                    payment.save()
+                    
+                    # Trigger stock restoration task
+                    from apps.business.commerce.orders.tasks import restore_stock_for_failed_payment_task
+                    restore_stock_for_failed_payment_task.delay(str(payment.order_id))
+                    
+                    logger.warning(f"ZaloPay payment failed: {app_trans_id}, code: {status_code}")
                 
         except Payment.DoesNotExist:
             logger.error(f"Payment not found: {app_trans_id}")

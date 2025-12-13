@@ -512,13 +512,16 @@ else:
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = [
+    # SECURITY: Load CORS origins from environment variable for flexibility
+    # Format: comma-separated list of origins
+    # Example: CORS_ALLOWED_ORIGINS=https://owls.asia,https://admin.owls.asia
+    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
         'https://owls.asia',
         'https://www.owls.asia',
         'https://admin.owls.asia',
         'https://seller.owls.asia',
         'https://api.owls.asia',
-    ]
+    ])
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -571,10 +574,17 @@ if not DEBUG:
 # =============================================================================
 AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
 AXES_COOLOFF_TIME = timedelta(minutes=30)  # Lock duration
-AXES_RESET_ON_SUCCESS = True
+# SECURITY FIX: Set to False to prevent low-and-slow brute force attacks
+# When True, successful login resets the failure counter, allowing attackers
+# to try 4 passwords, login with another account, and repeat indefinitely
+AXES_RESET_ON_SUCCESS = False
 AXES_LOCKOUT_TEMPLATE = None
 AXES_LOCKOUT_URL = None
 AXES_VERBOSE = True
+# Lock by both username and IP address (prevents account enumeration)
+AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']
+# Use cache backend for better performance
+AXES_HANDLER = 'axes.handlers.cache.AxesCacheHandler'
 
 # =============================================================================
 # CELERY CONFIGURATION (Background Tasks)
