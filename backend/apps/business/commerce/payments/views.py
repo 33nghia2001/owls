@@ -96,7 +96,9 @@ class CreatePaymentView(APIView):
             payment.save()
             payment_data['message'] = 'Cash on delivery - pay when you receive'
         else:
-            payment_data['payment_url'] = f'https://payment.owls.asia/pay/{payment.transaction_id}'
+            # Use configured domain instead of hardcoded URL
+            payment_domain = getattr(settings, 'PAYMENT_DOMAIN', f"https://payment.{settings.SITE_DOMAIN}")
+            payment_data['payment_url'] = f'{payment_domain}/pay/{payment.transaction_id}'
         
         return Response({
             'success': True,

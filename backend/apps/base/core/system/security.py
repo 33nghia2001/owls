@@ -118,15 +118,21 @@ def sanitize_filename(filename: str) -> str:
     return filename.strip() or 'unnamed'
 
 
-def sanitize_text_field(text: str, max_length: int = None) -> str:
+def sanitize_text_field(text: str, max_length: int = None, escape_html: bool = False) -> str:
     """
-    Sanitize user-provided text field for safe storage and display.
+    Sanitize user-provided text field for safe storage.
     
-    SECURITY: Use this for free-text fields like customer_note, address, etc.
+    NOTE: By default, this function does NOT escape HTML entities.
+    Modern frontend frameworks (React, Vue, Next.js) automatically escape
+    output when rendering, so escaping at input causes "double escaping"
+    (e.g., "User & Co" becomes "User &amp; Co" on screen).
+    
+    Set escape_html=True only if you're rendering raw HTML without a framework.
     
     Args:
         text: User input text
         max_length: Optional maximum length
+        escape_html: Whether to escape HTML entities (default: False)
         
     Returns:
         str: Sanitized text
@@ -143,8 +149,10 @@ def sanitize_text_field(text: str, max_length: int = None) -> str:
         if ord(char) >= 32 or char in '\n\r\t'
     )
     
-    # Escape HTML entities to prevent XSS
-    text = html.escape(text)
+    # Only escape HTML if explicitly requested
+    # (for legacy templates or non-framework rendering)
+    if escape_html:
+        text = html.escape(text)
     
     # Normalize whitespace
     text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single

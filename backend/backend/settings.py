@@ -749,11 +749,14 @@ LOGGING = {
             'backupCount': 5,
             'formatter': 'verbose',
         },
-        'mail_admins': {
-            'level': 'ERROR',
-            'filters': ['require_debug_false'],
-            'class': 'django.utils.log.AdminEmailHandler',
-        },
+        # NOTE: mail_admins is disabled by default due to blocking I/O issues.
+        # For production error tracking, use Sentry or similar services instead.
+        # If you need email alerts, use the async Celery task in apps.base.core.system.tasks
+        # 'mail_admins': {
+        #     'level': 'ERROR',
+        #     'filters': ['require_debug_false'],
+        #     'class': 'django.utils.log.AdminEmailHandler',
+        # },
     },
     'root': {
         'handlers': ['console'],
@@ -766,7 +769,7 @@ LOGGING = {
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['file', 'mail_admins'],
+            'handlers': ['file'],  # Removed mail_admins - use Sentry instead
             'level': 'ERROR',
             'propagate': False,
         },

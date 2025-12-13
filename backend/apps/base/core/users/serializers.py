@@ -50,23 +50,33 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Custom JWT token serializer with additional user data."""
+    """
+    Custom JWT token serializer with minimal claims.
+    
+    SECURITY: JWT tokens are only signed, not encrypted. Anyone can decode
+    the payload. We only include user_id and role - no PII (email, name).
+    Clients should call /api/v1/users/me to get user details.
+    """
     
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
         
-        # Add custom claims
-        token['email'] = user.email
+        # SECURITY: Only include minimal claims - no PII
+        # user_id is already included by SimpleJWT
         token['role'] = user.role
-        token['full_name'] = user.full_name
+        
+        # DO NOT include email or full_name in token:
+        # - Increases token size
+        # - Exposes PII if token is intercepted
+        # - Client can fetch from /api/v1/users/me
         
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
         
-        # Add user info to response
+        # Add user info to response (not stored in token)
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,

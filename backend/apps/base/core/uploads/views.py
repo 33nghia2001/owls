@@ -403,7 +403,8 @@ class ConfirmUploadView(APIView):
     """
     Confirm that a presigned URL upload has completed.
     
-    Updates the upload record with actual file info from storage.
+    SECURITY: Verifies the file actually exists on S3/R2 and updates
+    the file_size from storage metadata. This prevents fake confirmations.
     """
     
     permission_classes = [permissions.IsAuthenticated]
@@ -420,14 +421,73 @@ class ConfirmUploadView(APIView):
                 'error': {'message': 'Upload already confirmed or failed'}
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Update upload status
-        upload.status = Upload.Status.COMPLETED
-        upload.save(update_fields=['status', 'updated_at'])
+        # SECURITY FIX: Verify file actually exists on S3/R2 and get real size
+        try:
+            import boto3
+            from botocore.config import Config
+            from botocore.exceptions import ClientError
+            
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=getattr(settings, 'AWS_S3_REGION_NAME', 'auto'),
+                config=Config(signature_version='s3v4')
+            )
+            
+            # Get file key from upload
+            from .storage import get_upload_path
+            key = get_upload_path(upload, upload.original_filename, upload.upload_type)
+            
+            # HEAD request to verify file exists and get metadata
+            response = s3_client.head_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=key
+            )
+            
+            # Update upload with real file size from S3
+            actual_size = response.get('ContentLength', 0)
+            actual_content_type = response.get('ContentType', upload.content_type)
+            
+            upload.file_size = actual_size
+            upload.content_type = actual_content_type
+            upload.status = Upload.Status.COMPLETED
+            upload.save(update_fields=['file_size', 'content_type', 'status', 'updated_at'])
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == '404' or error_code == 'NoSuchKey':
+                # File doesn't exist on storage - mark as failed
+                upload.status = Upload.Status.FAILED
+                upload.save(update_fields=['status', 'updated_at'])
+                logger.warning(f"Upload confirm failed - file not found on S3: {upload.id}")
+                return Response({
+                    'success': False,
+                    'error': {'message': 'File not found on storage. Please re-upload.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                logger.error(f"S3 error during upload confirm: {e}")
+                return Response({
+                    'success': False,
+                    'error': {'message': 'Failed to verify upload'}
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except ImportError:
+            # boto3 not available (development mode) - skip verification
+            upload.status = Upload.Status.COMPLETED
+            upload.save(update_fields=['status', 'updated_at'])
+            logger.warning(f"Upload confirmed without S3 verification (dev mode): {upload.id}")
+        except Exception as e:
+            logger.error(f"Unexpected error during upload confirm: {e}")
+            return Response({
+                'success': False,
+                'error': {'message': 'Failed to verify upload'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         # SECURITY: Sanitize filename in log to prevent log injection
         from apps.base.core.system.security import sanitize_for_logging
         safe_filename = sanitize_for_logging(upload.original_filename, max_length=100)
-        logger.info(f"Upload confirmed: {safe_filename}")
+        logger.info(f"Upload confirmed: {safe_filename}, size={upload.file_size}")
         
         return Response({
             'success': True,
