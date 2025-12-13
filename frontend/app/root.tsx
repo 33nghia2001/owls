@@ -5,12 +5,10 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLoaderData,
-  type LoaderFunctionArgs,
+  type ClientLoaderFunctionArgs,
 } from "react-router";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import "./app.css";
 import { Header, Footer, CartSidebar } from "~/components/layout";
@@ -18,9 +16,17 @@ import { useAuthStore, useWishlistStore } from "~/lib/stores";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { Toaster } from "~/components/ui/toast";
 import { queryClient } from "~/lib/query";
-import { createApi, getGuestCartIdFromServerRequest } from "~/lib/api";
 import { NotificationListener } from "~/components/notifications";
 import type { User } from "~/lib/types";
+
+// Lazy load devtools in dev mode only
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-query-devtools").then((mod) => ({
+        default: mod.ReactQueryDevtools,
+      }))
+    )
+  : () => null;
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -35,22 +41,11 @@ export const links = () => [
   },
 ];
 
-// --- Loader: Fetch user from server to prevent auth flicker ---
-export async function loader({ request }: LoaderFunctionArgs) {
-  const api = createApi(request);
-  let user: User | null = null;
-  
-  try {
-    const res = await api.get("/users/me/");
-    user = res.data;
-  } catch {
-    // Not logged in or token expired - that's OK
-  }
-  
-  // Also get guestCartId from cookie for SSR consistency
-  const guestCartId = getGuestCartIdFromServerRequest(request);
-  
-  return { user, guestCartId };
+// --- Client Loader: SPA mode - fetch user client-side ---
+export async function clientLoader({ request }: ClientLoaderFunctionArgs) {
+  // In SPA mode, this runs client-side only
+  // User auth is handled by checkAuth in useEffect, so we just return empty
+  return { user: null as User | null, guestCartId: null as string | null };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -72,24 +67,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { user } = useLoaderData<typeof loader>();
-  const { setUser, checkAuth } = useAuthStore();
+  const { checkAuth, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    // Sync server-fetched user into store immediately to prevent flicker
-    if (user) {
-      setUser(user);
-    } else {
-      // Fallback: check auth client-side if server didn't return user
-      checkAuth();
-    }
-    // Hydrate wishlist store to avoid SSR mismatch
+    // SPA mode: always check auth client-side
+    checkAuth();
+    // Hydrate wishlist store
     useWishlistStore.persist.rehydrate();
-    // Fetch wishlist from server if user is authenticated
-    if (user) {
+  }, [checkAuth]);
+
+  // Fetch wishlist when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
       useWishlistStore.getState().fetchWishlist();
     }
-  }, [user, setUser, checkAuth]);
+  }, [isAuthenticated]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -105,7 +97,11 @@ export default function App() {
           <NotificationListener />
         </div>
       </TooltipProvider>
-      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+      {import.meta.env.DEV && (
+        <Suspense fallback={null}>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </Suspense>
+      )}
     </QueryClientProvider>
   );
 }
