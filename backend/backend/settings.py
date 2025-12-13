@@ -35,8 +35,15 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 # Site configuration
 SITE_NAME = 'Owls'
 SITE_DOMAIN = env('SITE_DOMAIN', default='owls.asia')
-FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:3000')
-ADMIN_URL = env('ADMIN_URL', default='http://localhost:5173')
+
+# SECURITY FIX: Only allow localhost defaults in DEBUG mode
+# In production, these MUST be set via environment variables
+if DEBUG:
+    FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:3000')
+    ADMIN_URL = env('ADMIN_URL', default='http://localhost:5173')
+else:
+    FRONTEND_URL = env('FRONTEND_URL')  # Required in production
+    ADMIN_URL = env('ADMIN_URL')  # Required in production
 
 # =============================================================================
 # APPLICATION DEFINITION
@@ -509,8 +516,23 @@ else:
 # =============================================================================
 # CORS CONFIGURATION
 # =============================================================================
+# SECURITY FIX: Never use CORS_ALLOW_ALL_ORIGINS = True, even in DEBUG mode
+# This prevents accidental deployment with open CORS which allows any domain
+# to make API requests.
+#
+# For development, specify localhost origins explicitly.
+# For production, use CORS_ALLOWED_ORIGINS environment variable.
+
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    # Development origins - explicitly list allowed dev domains
+    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+        'http://localhost:3000',      # Next.js store frontend
+        'http://localhost:5173',      # Vite admin frontend
+        'http://localhost:5174',      # Vite vendor frontend
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
+    ])
 else:
     # SECURITY: Load CORS origins from environment variable for flexibility
     # Format: comma-separated list of origins
@@ -626,6 +648,19 @@ CELERY_BEAT_SCHEDULE = {
     'cancel-unpaid-orders': {
         'task': 'orders.cancel_unpaid_orders',
         'schedule': crontab(minute='*/5'),  # Every 5 minutes
+        'options': {'queue': 'maintenance'},
+    },
+    # Cleanup pending uploads hourly (prevents storage spam)
+    'cleanup-pending-uploads': {
+        'task': 'uploads.cleanup_pending_uploads',
+        'schedule': crontab(minute=0),  # Every hour at minute 0
+        'options': {'queue': 'maintenance'},
+    },
+    # Cleanup orphaned uploads weekly on Saturday at 5 AM
+    'cleanup-orphaned-uploads': {
+        'task': 'uploads.cleanup_orphaned_uploads',
+        'schedule': crontab(hour=5, minute=0, day_of_week='saturday'),
+        'args': (30,),  # 30 days old threshold
         'options': {'queue': 'maintenance'},
     },
 }
@@ -750,11 +785,12 @@ OWLS_CONFIG = {
 # =============================================================================
 
 # VNPay Configuration
+# SECURITY FIX: URLs are environment-dependent to prevent localhost leaks in production
 VNPAY_CONFIG = {
     'TMN_CODE': env('VNPAY_TMN_CODE', default=''),
     'HASH_SECRET': env('VNPAY_HASH_SECRET', default=''),
     'PAYMENT_URL': env('VNPAY_URL', default='https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
-    'RETURN_URL': env('VNPAY_RETURN_URL', default='http://localhost:3000/payment/vnpay/return'),
+    'RETURN_URL': env('VNPAY_RETURN_URL', default=f"{FRONTEND_URL}/payment/vnpay/return"),
     'API_URL': env('VNPAY_API_URL', default='https://sandbox.vnpayment.vn/merchant_webapi/api/transaction'),
     'VERSION': '2.1.0',
     'COMMAND': 'pay',
@@ -768,8 +804,8 @@ MOMO_CONFIG = {
     'ACCESS_KEY': env('MOMO_ACCESS_KEY', default=''),
     'SECRET_KEY': env('MOMO_SECRET_KEY', default=''),
     'ENDPOINT': env('MOMO_ENDPOINT', default='https://test-payment.momo.vn/v2/gateway/api'),
-    'RETURN_URL': env('MOMO_RETURN_URL', default='http://localhost:3000/payment/momo/return'),
-    'NOTIFY_URL': env('MOMO_NOTIFY_URL', default='http://localhost:8000/api/v1/payments/webhook/momo/'),
+    'RETURN_URL': env('MOMO_RETURN_URL', default=f"{FRONTEND_URL}/payment/momo/return"),
+    'NOTIFY_URL': env('MOMO_NOTIFY_URL', default=''),  # Must be set for production
     'REQUEST_TYPE': 'captureWallet',
 }
 
@@ -779,7 +815,7 @@ ZALOPAY_CONFIG = {
     'KEY1': env('ZALOPAY_KEY1', default=''),
     'KEY2': env('ZALOPAY_KEY2', default=''),
     'ENDPOINT': env('ZALOPAY_ENDPOINT', default='https://sb-openapi.zalopay.vn/v2'),
-    'CALLBACK_URL': env('ZALOPAY_CALLBACK_URL', default='http://localhost:8000/api/v1/payments/webhook/zalopay/'),
+    'CALLBACK_URL': env('ZALOPAY_CALLBACK_URL', default=''),  # Must be set for production
 }
 
 # =============================================================================

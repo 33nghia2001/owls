@@ -98,6 +98,12 @@ class CreateOrderSerializer(serializers.Serializer):
     billing_address_id = serializers.IntegerField(required=False, allow_null=True)
     payment_method = serializers.CharField(max_length=50)
     customer_note = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    # SECURITY: Idempotency key to prevent duplicate orders from double-clicks or retries
+    # Frontend must generate a unique UUID for each checkout attempt
+    idempotency_key = serializers.UUIDField(
+        required=True,
+        help_text='Unique key to prevent duplicate order creation. Frontend should generate a new UUID for each checkout attempt.'
+    )
 
 
 class CancelOrderSerializer(serializers.Serializer):

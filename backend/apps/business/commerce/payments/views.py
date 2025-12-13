@@ -156,6 +156,37 @@ class PaymentWebhookView(APIView):
     
     permission_classes = [permissions.AllowAny]
     authentication_classes = []  # No auth for webhooks
+    
+    # SECURITY: Fields that should be redacted from stored gateway responses
+    # to prevent sensitive data from being logged or stored in database
+    SENSITIVE_FIELDS = {
+        'vnp_SecureHash', 'vnp_SecureHashType',
+        'signature', 'accessKey', 'secretKey',
+        'mac', 'key1', 'key2',
+        'cardNumber', 'card_number', 'cardNo',
+        'cvv', 'cvc', 'securityCode',
+        'expiryDate', 'expiry_date', 'exp',
+        'password', 'pin', 'otp',
+    }
+    
+    def _sanitize_payload(self, payload: dict) -> dict:
+        """
+        Remove sensitive fields from payload before storing.
+        
+        SECURITY: Prevents sensitive data from being logged or stored in DB.
+        """
+        if not isinstance(payload, dict):
+            return payload
+        
+        sanitized = {}
+        for key, value in payload.items():
+            if key.lower() in {f.lower() for f in self.SENSITIVE_FIELDS}:
+                sanitized[key] = '[REDACTED]'
+            elif isinstance(value, dict):
+                sanitized[key] = self._sanitize_payload(value)
+            else:
+                sanitized[key] = value
+        return sanitized
 
     def post(self, request, gateway):
         import logging
@@ -341,7 +372,8 @@ class PaymentWebhookView(APIView):
                 
                 if response_code == '00':  # Success
                     payment.status = Payment.Status.COMPLETED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.paid_at = timezone.now()
                     payment.save()
                     
@@ -355,7 +387,8 @@ class PaymentWebhookView(APIView):
                     logger.info(f"VNPay payment successful: {txn_ref}")
                 else:
                     payment.status = Payment.Status.FAILED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.failure_reason = f"VNPay error: {response_code}"
                     payment.save()
                     
@@ -414,7 +447,8 @@ class PaymentWebhookView(APIView):
                 
                 if result_code == 0:  # Success
                     payment.status = Payment.Status.COMPLETED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.paid_at = timezone.now()
                     payment.save()
                     
@@ -428,7 +462,8 @@ class PaymentWebhookView(APIView):
                     logger.info(f"MoMo payment successful: {order_id}")
                 else:
                     payment.status = Payment.Status.FAILED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.failure_reason = f"MoMo error: {result_code}"
                     payment.save()
                     
@@ -494,7 +529,8 @@ class PaymentWebhookView(APIView):
                 
                 if status_code == 1:  # Success
                     payment.status = Payment.Status.COMPLETED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.paid_at = timezone.now()
                     payment.save()
                     
@@ -508,7 +544,8 @@ class PaymentWebhookView(APIView):
                     logger.info(f"ZaloPay payment successful: {app_trans_id}")
                 else:
                     payment.status = Payment.Status.FAILED
-                    payment.gateway_response = payload
+                    # SECURITY: Sanitize sensitive fields before storing
+                    payment.gateway_response = self._sanitize_payload(payload)
                     payment.failure_reason = f"ZaloPay error: {status_code}"
                     payment.save()
                     

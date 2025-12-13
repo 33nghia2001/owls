@@ -9,6 +9,7 @@ from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.throttling import UserRateThrottle
 from django.shortcuts import get_object_or_404
 from django.db import models, transaction
 from django.conf import settings
@@ -211,12 +212,41 @@ class UploadDeleteView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+# Maximum pending uploads per user (prevents storage spam)
+MAX_PENDING_UPLOADS_PER_USER = 20
+
+# Content type whitelist per upload type (prevents malicious file uploads)
+CONTENT_TYPE_WHITELIST = {
+    'avatar': ['image/jpeg', 'image/png', 'image/webp'],
+    'product': ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    'banner': ['image/jpeg', 'image/png', 'image/webp'],
+    'document': [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+    'video': ['video/mp4', 'video/webm', 'video/quicktime'],
+    'other': [
+        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+        'application/pdf',
+    ],
+}
+
+
+class PresignedUrlThrottle(UserRateThrottle):
+    """Stricter rate limiting for presigned URL generation."""
+    rate = '10/minute'  # Max 10 presigned URLs per minute per user
+
+
 @extend_schema(
     tags=['Uploads'],
     request=PresignedUrlSerializer,
     responses={
         200: OpenApiResponse(description='Presigned URL generated'),
-        400: OpenApiResponse(description='Invalid request')
+        400: OpenApiResponse(description='Invalid request'),
+        429: OpenApiResponse(description='Too many requests')
     }
 )
 class PresignedUploadUrlView(APIView):
@@ -226,6 +256,11 @@ class PresignedUploadUrlView(APIView):
     This allows large file uploads directly to storage without passing through
     the application server, reducing server load.
     
+    Security measures:
+    - Rate limited to 10 requests/minute per user
+    - Maximum 20 pending uploads per user
+    - Content-type whitelist per upload_type
+    
     Flow:
     1. Client requests presigned URL
     2. Server returns URL + upload_id
@@ -234,6 +269,7 @@ class PresignedUploadUrlView(APIView):
     """
     
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [PresignedUrlThrottle]
     
     def post(self, request):
         serializer = PresignedUrlSerializer(data=request.data)
@@ -242,6 +278,40 @@ class PresignedUploadUrlView(APIView):
         filename = serializer.validated_data['filename']
         content_type = serializer.validated_data['content_type']
         upload_type = serializer.validated_data['upload_type']
+        
+        # SECURITY: Validate content_type against whitelist for the upload_type
+        allowed_types = CONTENT_TYPE_WHITELIST.get(upload_type, CONTENT_TYPE_WHITELIST['other'])
+        if content_type not in allowed_types:
+            logger.warning(
+                f"Blocked presigned URL request: content_type '{content_type}' "
+                f"not allowed for upload_type '{upload_type}' by user {request.user.id}"
+            )
+            return Response({
+                'success': False,
+                'error': {
+                    'message': f"Content type '{content_type}' is not allowed for {upload_type} uploads",
+                    'allowed_types': allowed_types
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # SECURITY: Check pending uploads limit to prevent storage spam
+        pending_count = Upload.objects.filter(
+            uploaded_by=request.user,
+            status=Upload.Status.PENDING
+        ).count()
+        
+        if pending_count >= MAX_PENDING_UPLOADS_PER_USER:
+            logger.warning(
+                f"User {request.user.id} exceeded max pending uploads limit ({pending_count})"
+            )
+            return Response({
+                'success': False,
+                'error': {
+                    'message': f'Too many pending uploads. Please complete or cancel existing uploads first.',
+                    'pending_count': pending_count,
+                    'max_allowed': MAX_PENDING_UPLOADS_PER_USER
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if R2/S3 is configured
         if not getattr(settings, 'AWS_S3_ENDPOINT_URL', None):

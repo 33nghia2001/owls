@@ -47,18 +47,49 @@ class OrderDetailView(generics.RetrieveAPIView):
 
 @extend_schema(tags=['Orders'], request=CreateOrderSerializer, responses={201: OrderDetailSerializer})
 class CreateOrderView(APIView):
-    """Create order from cart."""
+    """
+    Create order from cart.
+    
+    Security features:
+    - Idempotency key required to prevent duplicate orders from double-clicks
+    - Cart locked during order creation to prevent race conditions
+    """
     
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        from django.db import transaction
+        from django.core.cache import cache
+        
         serializer = CreateOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         user = request.user
+        idempotency_key = str(serializer.validated_data['idempotency_key'])
+        
+        # SECURITY: Check idempotency key to prevent duplicate orders
+        # Key format: order_idempotency:{user_id}:{idempotency_key}
+        cache_key = f"order_idempotency:{user.id}:{idempotency_key}"
+        
+        # Check if this key was already used (expires after 24 hours)
+        existing_order_id = cache.get(cache_key)
+        if existing_order_id:
+            # Return the existing order instead of creating a duplicate
+            try:
+                existing_order = Order.objects.get(id=existing_order_id, user=user)
+                return Response({
+                    'success': True,
+                    'message': 'Order already created (duplicate request detected)',
+                    'data': OrderDetailSerializer(existing_order).data,
+                    'duplicate': True
+                }, status=status.HTTP_200_OK)
+            except Order.DoesNotExist:
+                # Order was deleted somehow, allow new creation
+                pass
         
         try:
-            cart = Cart.objects.get(user=user)
+            # Lock cart with select_for_update to prevent race conditions
+            cart = Cart.objects.select_for_update().get(user=user)
         except Cart.DoesNotExist:
             return Response({
                 'success': False,
@@ -97,6 +128,9 @@ class CreateOrderView(APIView):
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 source='web'
             )
+            
+            # Store idempotency key with order ID (expires after 24 hours)
+            cache.set(cache_key, str(order.id), timeout=86400)
             
             return Response({
                 'success': True,

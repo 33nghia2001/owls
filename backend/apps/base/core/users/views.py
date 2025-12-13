@@ -98,20 +98,30 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+        
+        refresh_token = request.data.get('refresh')
+        
+        if not refresh_token:
+            return Response({
+                'success': False,
+                'message': 'Refresh token is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            refresh_token = request.data.get('refresh')
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
+            token = RefreshToken(refresh_token)
+            token.blacklist()
             
             return Response({
                 'success': True,
                 'message': 'Logout successful'
             }, status=status.HTTP_200_OK)
-        except Exception:
+            
+        except (TokenError, InvalidToken) as e:
+            # Specific JWT token errors - token invalid or already blacklisted
             return Response({
                 'success': False,
-                'message': 'Invalid token'
+                'message': 'Invalid or expired token'
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -238,10 +248,18 @@ class PasswordResetRequestView(APIView):
     throttle_scope = 'password_reset'
 
     def post(self, request):
+        import time
+        import hashlib
+        
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         email = serializer.validated_data['email']
+        
+        # SECURITY FIX: Constant-time operation to prevent timing attacks
+        # Always perform a dummy hash operation to normalize response time
+        # whether user exists or not
+        start_time = time.time()
         
         try:
             user = User.objects.get(email=email, is_active=True)
@@ -259,8 +277,17 @@ class PasswordResetRequestView(APIView):
             )
             
         except User.DoesNotExist:
-            # Don't reveal that user doesn't exist
-            pass
+            # SECURITY: Perform dummy hash to normalize timing
+            # This makes the response time similar whether user exists or not
+            dummy_data = f"dummy_{email}_timing_protection".encode()
+            for _ in range(1000):  # Simulate token generation work
+                hashlib.sha256(dummy_data).hexdigest()
+        
+        # SECURITY: Ensure minimum response time to prevent timing analysis
+        elapsed = time.time() - start_time
+        min_response_time = 0.3  # 300ms minimum
+        if elapsed < min_response_time:
+            time.sleep(min_response_time - elapsed)
         
         return Response({
             'success': True,
