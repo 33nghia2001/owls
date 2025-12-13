@@ -103,72 +103,25 @@ class Cart(TimeStampedModel):
 
     def recalculate(self):
         """
-        Recalculate cart totals using database aggregation.
-        More efficient than Python loops for large carts.
+        Recalculate cart totals.
+        Delegates to CartService to maintain Single Source of Truth (DRY principle).
         """
-        from decimal import Decimal
-        from django.db.models import Sum
-        
-        # Use database aggregation instead of Python loops
-        aggregates = self.items.aggregate(
-            subtotal=Sum('total_price'),
-            item_count=Sum('quantity')
-        )
-        
-        self.subtotal = aggregates['subtotal'] or Decimal('0.00')
-        self.item_count = aggregates['item_count'] or 0
-        
-        # Apply coupon discount
-        if self.coupon and self.coupon.is_valid:
-            self.discount_amount = self.coupon.calculate_discount(self.subtotal)
-        else:
-            self.discount_amount = Decimal('0.00')
-        
-        # Calculate tax (10% VAT)
-        tax_rate = Decimal(str(settings.OWLS_CONFIG.get('TAX_RATE', 0.10)))
-        taxable_amount = self.subtotal - self.discount_amount
-        self.tax_amount = taxable_amount * tax_rate
-        
-        # Total
-        self.total = self.subtotal - self.discount_amount + self.tax_amount + self.shipping_amount
-        
-        self.save(update_fields=[
-            'subtotal', 'discount_amount', 'tax_amount',
-            'total', 'item_count', 'updated_at'
-        ])
+        from .services import CartService
+        CartService(self).recalculate_totals()
         return self
 
     def clear(self):
-        """Remove all items from cart."""
-        self.items.all().delete()
-        self.coupon = None
-        self.recalculate()
+        """Remove all items from cart. Delegates to CartService."""
+        from .services import CartService
+        CartService(self).clear()
 
     def merge_with(self, other_cart):
         """
         Merge another cart into this one.
-        Uses transaction.atomic() to ensure data integrity.
+        Delegates to CartService to ensure transaction safety.
         """
-        from django.db import transaction
-        
-        with transaction.atomic():
-            for item in other_cart.items.select_related('product', 'variant'):
-                existing_item = self.items.filter(
-                    product=item.product,
-                    variant=item.variant
-                ).first()
-                
-                if existing_item:
-                    existing_item.quantity += item.quantity
-                    existing_item.total_price = existing_item.unit_price * existing_item.quantity
-                    existing_item.save(update_fields=['quantity', 'total_price', 'updated_at'])
-                else:
-                    item.cart = self
-                    item.save(update_fields=['cart', 'updated_at'])
-            
-            # Delete other cart only after successful merge
-            other_cart.delete()
-            self.recalculate()
+        from .services import CartService
+        CartService(self).merge_with(other_cart)
 
 
 class CartItem(TimeStampedModel):

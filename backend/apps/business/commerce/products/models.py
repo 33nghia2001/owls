@@ -336,6 +336,13 @@ class Product(OwlsBaseModel, SlugModel):
             models.Index(fields=['rating']),
             models.Index(fields=['-sold_count']),
         ]
+        # Database-level constraint to prevent negative stock (Race Condition Protection)
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(stock_quantity__gte=0),
+                name='product_stock_quantity_non_negative'
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -445,6 +452,13 @@ class ProductVariant(TimeStampedModel):
     class Meta:
         verbose_name = _('Product Variant')
         verbose_name_plural = _('Product Variants')
+        # Database-level constraint to prevent negative stock (Race Condition Protection)
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(stock_quantity__gte=0),
+                name='variant_stock_quantity_non_negative'
+            ),
+        ]
 
     def __str__(self):
         return f'{self.product.name} - {self.name}'

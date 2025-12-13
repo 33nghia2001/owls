@@ -4,15 +4,20 @@ Order Service for Owls E-commerce Platform
 Business logic layer for order operations with inventory locking.
 """
 
+from __future__ import annotations
+
 import secrets
 import string
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Dict, Any, List
+from typing import TYPE_CHECKING, Optional, Dict, Any, List
 from django.db import transaction
 from django.db.models import F
 from django.conf import settings
 import logging
+
+if TYPE_CHECKING:
+    from .models import Order
 
 logger = logging.getLogger(__name__)
 
@@ -106,23 +111,25 @@ class OrderService:
             raise ValueError('Cart is empty')
         
         # Lock all products and variants for update to prevent race conditions
-        product_ids = [item.product_id for item in cart_items]
-        variant_ids = [item.variant_id for item in cart_items if item.variant_id]
+        # IMPORTANT: Sort by ID to prevent deadlocks when multiple requests
+        # lock the same products in different order
+        product_ids = sorted([item.product_id for item in cart_items])
+        variant_ids = sorted([item.variant_id for item in cart_items if item.variant_id])
         
-        # Lock products
+        # Lock products (ordered by ID to prevent deadlock)
         locked_products = {
             p.id: p for p in Product.objects.select_for_update().filter(
                 id__in=product_ids
-            )
+            ).order_by('id')
         }
         
-        # Lock variants
+        # Lock variants (ordered by ID to prevent deadlock)
         locked_variants = {}
         if variant_ids:
             locked_variants = {
                 v.id: v for v in ProductVariant.objects.select_for_update().filter(
                     id__in=variant_ids
-                )
+                ).order_by('id')
             }
         
         # Validate inventory before creating order
@@ -249,13 +256,13 @@ class OrderService:
         # Get order items
         order_items = list(order.items.select_related('product', 'variant'))
         
-        # Lock products and variants
-        product_ids = [item.product_id for item in order_items]
-        variant_ids = [item.variant_id for item in order_items if item.variant_id]
+        # Lock products and variants (sorted by ID to prevent deadlock)
+        product_ids = sorted([item.product_id for item in order_items])
+        variant_ids = sorted([item.variant_id for item in order_items if item.variant_id])
         
-        Product.objects.select_for_update().filter(id__in=product_ids)
+        Product.objects.select_for_update().filter(id__in=product_ids).order_by('id')
         if variant_ids:
-            ProductVariant.objects.select_for_update().filter(id__in=variant_ids)
+            ProductVariant.objects.select_for_update().filter(id__in=variant_ids).order_by('id')
         
         # Restore inventory using F() expressions
         for item in order_items:
@@ -299,8 +306,16 @@ class OrderService:
         if not order.can_refund:
             return False
         
-        # Restore inventory (same as cancel)
+        # Restore inventory with proper locking (sorted by ID to prevent deadlock)
         order_items = list(order.items.select_related('product', 'variant'))
+        
+        product_ids = sorted([item.product_id for item in order_items])
+        variant_ids = sorted([item.variant_id for item in order_items if item.variant_id])
+        
+        # Lock in consistent order
+        Product.objects.select_for_update().filter(id__in=product_ids).order_by('id')
+        if variant_ids:
+            ProductVariant.objects.select_for_update().filter(id__in=variant_ids).order_by('id')
         
         for item in order_items:
             if item.product.track_inventory:

@@ -4,12 +4,17 @@ Cart Service for Owls E-commerce Platform
 Business logic layer for cart operations with optimized DB queries.
 """
 
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import Optional, Dict, Any
-from django.db import transaction, models
-from django.db.models import Sum, F, Count
+from typing import TYPE_CHECKING, Optional, Dict, Any
+from django.db import transaction
+from django.db.models import Sum, Count
 from django.conf import settings
 import logging
+
+if TYPE_CHECKING:
+    from .models import Cart, CartItem
 
 logger = logging.getLogger(__name__)
 
