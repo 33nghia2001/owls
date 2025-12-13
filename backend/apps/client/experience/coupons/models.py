@@ -148,3 +148,53 @@ class Coupon(TimeStampedModel):
         """Increment usage counter after successful order."""
         self.times_used += 1
         self.save(update_fields=['times_used'])
+
+
+class CouponUsage(models.Model):
+    """
+    Track individual coupon usage by users.
+    Used for enforcing per-user limits and analytics.
+    """
+    
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+    coupon = models.ForeignKey(
+        Coupon,
+        on_delete=models.CASCADE,
+        related_name='usages'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='coupon_usages'
+    )
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.SET_NULL,
+        related_name='coupon_usage',
+        blank=True,
+        null=True
+    )
+    discount_amount = models.DecimalField(
+        _('Discount applied'),
+        max_digits=15,
+        decimal_places=2,
+        default=0
+    )
+    used_at = models.DateTimeField(_('Used at'), auto_now_add=True)
+
+    class Meta:
+        app_label = 'coupons'
+        verbose_name = _('Coupon Usage')
+        verbose_name_plural = _('Coupon Usages')
+        ordering = ['-used_at']
+        indexes = [
+            models.Index(fields=['coupon', 'user']),
+            models.Index(fields=['user', '-used_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.user} used {self.coupon.code}'

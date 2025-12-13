@@ -721,11 +721,18 @@ OWLS_CONFIG = {
     'DEFAULT_COUNTRY': 'VN',
     'TAX_RATE': 0.10,  # 10% VAT
     'FREE_SHIPPING_THRESHOLD': 500000,  # VND
+    'DEFAULT_SHIPPING_RATE': 30000,  # VND fallback shipping rate
     'MAX_CART_ITEMS': 50,
     'ORDER_ID_PREFIX': 'OWL',
     'VENDOR_COMMISSION_RATE': 0.15,  # 15%
     'POINTS_PER_VND': 0.001,  # 1 point per 1000 VND
     'PAYMENT_TIMEOUT_MINUTES': 30,  # Auto-cancel unpaid orders after 30 mins
+    # Store/Warehouse Address (for shipping calculation)
+    'STORE_PROVINCE': 'Hồ Chí Minh',
+    'STORE_PROVINCE_CODE': '79',
+    'STORE_DISTRICT': 'Quận 1',
+    'STORE_DISTRICT_ID': 1442,
+    'STORE_WARD_CODE': '21012',
 }
 
 # =============================================================================
@@ -763,4 +770,21 @@ ZALOPAY_CONFIG = {
     'KEY2': env('ZALOPAY_KEY2', default=''),
     'ENDPOINT': env('ZALOPAY_ENDPOINT', default='https://sb-openapi.zalopay.vn/v2'),
     'CALLBACK_URL': env('ZALOPAY_CALLBACK_URL', default='http://localhost:8000/api/v1/payments/webhook/zalopay/'),
+}
+
+# =============================================================================
+# SHIPPING PROVIDERS CONFIGURATION
+# =============================================================================
+
+# Giao Hàng Nhanh (GHN)
+GHN_CONFIG = {
+    'TOKEN': env('GHN_TOKEN', default=''),
+    'SHOP_ID': env('GHN_SHOP_ID', default=''),
+    'BASE_URL': env('GHN_BASE_URL', default='https://online-gateway.ghn.vn/shiip/public-api'),
+}
+
+# Giao Hàng Tiết Kiệm (GHTK)
+GHTK_CONFIG = {
+    'TOKEN': env('GHTK_TOKEN', default=''),
+    'BASE_URL': env('GHTK_BASE_URL', default='https://services.giaohangtietkiem.vn'),
 }

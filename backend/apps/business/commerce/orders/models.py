@@ -217,8 +217,50 @@ class Order(TimeStampedModel, MetaDataModel):
             self.Status.COMPLETED
         ]
 
-    def update_status(self, new_status, note=''):
-        """Update order status with timestamp."""
+    # Valid state transitions (State Machine)
+    VALID_TRANSITIONS = {
+        Status.PENDING: [Status.PAID, Status.CANCELLED, Status.FAILED],
+        Status.PAID: [Status.PROCESSING, Status.CANCELLED, Status.REFUNDED],
+        Status.PROCESSING: [Status.SHIPPED, Status.CANCELLED, Status.REFUNDED],
+        Status.SHIPPED: [Status.DELIVERED, Status.REFUNDED],
+        Status.DELIVERED: [Status.COMPLETED, Status.REFUNDED],
+        Status.COMPLETED: [Status.REFUNDED],
+        Status.CANCELLED: [],  # Terminal state
+        Status.REFUNDED: [],   # Terminal state
+        Status.FAILED: [Status.PENDING],  # Can retry
+    }
+
+    def can_transition_to(self, new_status) -> bool:
+        """
+        Check if transition to new status is valid.
+        
+        Args:
+            new_status: Target status
+            
+        Returns:
+            bool: True if transition is valid
+        """
+        allowed = self.VALID_TRANSITIONS.get(self.status, [])
+        return new_status in allowed
+
+    def update_status(self, new_status, note='', force=False):
+        """
+        Update order status with timestamp and validation.
+        
+        Args:
+            new_status: New status to set
+            note: Optional note for status change
+            force: Skip validation (admin only)
+            
+        Raises:
+            ValueError: If transition is not allowed
+        """
+        if not force and not self.can_transition_to(new_status):
+            raise ValueError(
+                f'Không thể chuyển trạng thái từ {self.get_status_display()} '
+                f'sang {self.Status(new_status).label}'
+            )
+        
         old_status = self.status
         self.status = new_status
         

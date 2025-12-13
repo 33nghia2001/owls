@@ -286,6 +286,7 @@ class CartService:
     def merge_with(self, other_cart) -> 'CartService':
         """
         Merge another cart into this one with transaction safety.
+        Validates stock limits when combining quantities.
         
         Args:
             other_cart: Cart instance to merge from
@@ -310,9 +311,30 @@ class CartService:
             ).first()
             
             if existing_item:
-                existing_item.quantity += item.quantity
+                # Calculate new quantity
+                new_quantity = existing_item.quantity + item.quantity
+                
+                # Validate against stock
+                if item.product.track_inventory:
+                    available_stock = (
+                        item.variant.stock_quantity if item.variant 
+                        else item.product.stock_quantity
+                    )
+                    if new_quantity > available_stock:
+                        # Cap at available stock instead of failing
+                        new_quantity = available_stock
+                        logger.warning(
+                            f"Cart merge capped quantity for {item.product.name}: "
+                            f"requested {existing_item.quantity + item.quantity}, "
+                            f"available {available_stock}"
+                        )
+                
+                existing_item.quantity = new_quantity
                 existing_item.total_price = existing_item.unit_price * existing_item.quantity
                 existing_item.save(update_fields=['quantity', 'total_price', 'updated_at'])
+                
+                # Delete the merged item
+                item.delete()
             else:
                 # Move item to this cart
                 item.cart = cart
