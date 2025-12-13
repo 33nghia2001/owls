@@ -20,6 +20,8 @@ api_v1_patterns = [
     path('auth/', include('apps.base.core.users.urls')),
     # Locations
     path('locations/', include('apps.base.core.locations.urls')),
+    # Uploads
+    path('uploads/', include('apps.base.core.uploads.urls')),
 
     # ===== BASE OPERATIONS =====
     # Audit Logs (Admin)
